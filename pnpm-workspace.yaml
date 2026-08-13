@@ -1,0 +1,5 @@
+allowBuilds:
+  esbuild: true
+publicHoistPattern:
+  - "playwright-*"
+  - "@playwright/*"
