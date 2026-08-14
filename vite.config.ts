@@ -6,7 +6,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
-        patch: resolve(__dirname, 'src/patch.ts'),
+        patch: resolve(__dirname, 'src/patches/index.ts'),
       },
       formats: ["cjs"],
     },

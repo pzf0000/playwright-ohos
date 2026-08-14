@@ -1,8 +1,8 @@
 // Launches on-device browsers through HDC or ohos-aa and wires them into
 // playwright-core's Chromium implementation.
-import { execFile, execFileSync } from 'child_process';
-
-import { HdcBackend, getFreePort, sleep, waitForEndpoint } from './hdc';
+import { HdcBackend } from './os/hdc';
+import { execOhosAa, resolveOhosAa } from './os/ohos-aa';
+import { getFreePort, sleep, waitForEndpoint } from './utils';
 
 export interface LaunchConfig {
   bundleName: string;
@@ -16,8 +16,6 @@ export interface LaunchConfig {
 }
 
 const DEVTOOLS_SOCKET_PATTERN = /@(webview_devtools_remote_\d+)/;
-
-const OHOS_AA_DEFAULT_PATH = '/system/bin/cli_tool/executable/ohos-aa';
 
 const KNOWN_BROWSERS: Record<string, LaunchConfig> = {
   huaweiBrowser: {
@@ -40,48 +38,6 @@ const KNOWN_BROWSERS: Record<string, LaunchConfig> = {
 };
 
 export const ARK_WEB_BUNDLE_NAME = 'com.huawei.hmos.browser';
-
-const isExecutable = (candidate: string): boolean => {
-  try {
-    execFileSync(candidate, ['--help'], { stdio: 'ignore', timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-/**
- * Resolves the ohos-aa executable. On HarmonyOS 7.1+ it is a regular command;
- * on this machine it is a shell alias, which is resolved through the shell.
- */
-export const resolveOhosAa = (): string | undefined => {
-  const candidates = [process.env.OHOS_AA_BINARY, 'ohos-aa', OHOS_AA_DEFAULT_PATH].filter((c): c is string => !!c);
-  for (const candidate of candidates) {
-    if (isExecutable(candidate))
-      return candidate;
-  }
-  for (const shell of ['zsh', 'bash', 'sh']) {
-    try {
-      const out = execFileSync(shell, ['-ic', 'which ohos-aa 2>/dev/null || true'], { encoding: 'utf8', timeout: 8000 }).trim();
-      const match = out.match(/aliased to (\S+)/) || out.match(/^(\S+)$/m);
-      if (match && isExecutable(match[1])) {
-        return match[1];
-      }
-    } catch {
-    }
-  }
-  return undefined;
-};
-
-const execAsync = (command: string, args: string[], timeoutMs = 30000): Promise<{ stdout: string; stderr: string }> => new Promise((resolve, reject) => {
-  execFile(command, args, { timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) => {
-    if (error) {
-      reject(error);
-    } else {
-      resolve({ stdout: String(stdout || ''), stderr: String(stderr || '') });
-    }
-  });
-});
 
 export const resolveLaunchConfig = (options: { channel?: string; harmonyBundleName?: string; harmonyDebugPort?: number }): LaunchConfig => {
   const envBrowser = process.env.HARMONY_BROWSER;
@@ -133,7 +89,7 @@ const startBrowserViaHdc = async (hdc: HdcBackend, config: LaunchConfig): Promis
       startArgs.push('--ps', JSON.stringify({ cmdArgs: `--remote-debugging-port=${port}` }));
     }
     if (ohosAa) {
-      await execAsync(ohosAa, startArgs);
+      await execOhosAa(ohosAa, startArgs);
     } else if (config.supportsCmdArgs) {
       await hdc.shell(`aa start -b ${config.bundleName} -a ${config.abilityName} --ps cmdArgs '--remote-debugging-port=${port}'`);
     } else {
@@ -144,7 +100,7 @@ const startBrowserViaHdc = async (hdc: HdcBackend, config: LaunchConfig): Promis
     return endpointURL;
   }
   if (ohosAa) {
-    await execAsync(ohosAa, ['start', '--bundlename', config.bundleName, '--abilityname', config.abilityName]);
+    await execOhosAa(ohosAa, ['start', '--bundlename', config.bundleName, '--abilityname', config.abilityName]);
   } else {
     await hdc.shell(`aa start -b ${config.bundleName} -a ${config.abilityName}`);
   }
@@ -204,7 +160,9 @@ export const launchViaHdc = async (chromium: any, progress: any, options: any): 
   });
   browser._hdcBackend = hdc;
   browser._isArkWeb = isArkWeb;
+  // The collocated flag was renamed in playwright-core 1.61.
   browser._isCollocatedWithServer = false;
+  browser._isBrowserCollocatedWithServer = false;
   patchBrowserClose(browser, hdc, config);
   return browser;
 };
