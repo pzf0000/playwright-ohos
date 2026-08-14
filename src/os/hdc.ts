@@ -65,6 +65,22 @@ export class HdcBackend {
     }
     this._forwards.length = 0;
   }
+
+  /**
+   * Removes stale device-socket forwards left behind by crashed runs, so
+   * repeated launches do not accumulate forwards. Only rules targeting
+   * webview devtools sockets are touched; the live browser is force-stopped
+   * before this runs, so all of them are stale by construction.
+   */
+  async cleanupStaleForwards(): Promise<void> {
+    const result = await this._run(['fport', 'ls']).catch(() => ({ stdout: '', stderr: '', code: 1 }));
+    for (const line of result.stdout.split('\n')) {
+      const match = line.match(/\s+(tcp:\d+)\s+(localabstract:\S+)/);
+      if (!match || !match[2].includes('webview_devtools_remote'))
+        continue;
+      await this._run(['fport', 'rm', match[1], match[2]]).catch(() => {});
+    }
+  }
 }
 
 /** Takes a screenshot through the HDC backend (used by the CDP screenshot fallback). */

@@ -79,6 +79,7 @@ const findDevtoolsSocket = async (hdc: HdcBackend, timeoutMs = 30000): Promise<s
 
 const startBrowserViaHdc = async (hdc: HdcBackend, config: LaunchConfig): Promise<string> => {
   const ohosAa = resolveOhosAa();
+  await hdc.cleanupStaleForwards();
   await hdc.shell(`aa force-stop ${config.bundleName}`);
   if (config.kind === 'tcp') {
     // Browsers that accept cmdArgs pick a free local port so an occupied
