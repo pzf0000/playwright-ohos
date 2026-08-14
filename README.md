@@ -107,7 +107,7 @@ npx playwright test --project=chrome-beta
 | --- | --- | --- |
 | `channel` | `string` | Selects the browser: `'huaweiBrowser'` (default), `'chrome'` (Haitai Browser) or `'chrome-beta'` (Chrome for Dev). |
 | `harmonyBundleName` | `string` | Overrides the browser bundle name, e.g. `'com.huawei.hmos.browser'`. The ability defaults to `MainAbility` for unknown bundles. |
-| `harmonyDebugPort` | `number` | Overrides the debug port for TCP-based browsers (default `9222`). |
+| `harmonyDebugPort` | `number` | Overrides the debug port for TCP-based browsers. Browsers that accept launch arguments pick a free port automatically; fixed-port browsers (such as Chrome for Dev) use `9222`. |
 
 Other launch options (`headless`, `args`, `executablePath`, `proxy`, ...) are accepted for compatibility but ignored on HarmonyOS: browsers are started through `aa start` and cannot receive arbitrary command-line arguments.
 
