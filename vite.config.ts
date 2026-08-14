@@ -11,11 +11,6 @@ export default defineConfig({
             formats: ["cjs"],
         },
         minify: 'terser',
-        terserOptions: {
-            compress: {
-                drop_console: true,
-            },
-        },
         outDir: 'dist',
         emptyOutDir: true,
         rollupOptions: {

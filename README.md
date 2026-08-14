@@ -99,9 +99,25 @@ npx playwright test --project=chrome-beta
 
 > **Note:** Do not run different browsers in parallel - they contend for the same debug port. Always use `workers: 1`.
 
-## Lauch Options
+## Launch Options
 
-## Envionment Variables
+`chromium.launch()` accepts the standard Playwright options; the following additional options control the HarmonyOS launcher:
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `channel` | `string` | Selects the browser: `'huaweiBrowser'` (default), `'chrome'` (Haitai Browser) or `'chrome-beta'` (Chrome for Dev). |
+| `harmonyBundleName` | `string` | Overrides the browser bundle name, e.g. `'com.huawei.hmos.browser'`. The ability defaults to `MainAbility` for unknown bundles. |
+| `harmonyDebugPort` | `number` | Overrides the debug port for TCP-based browsers (default `9222`). |
+
+Other launch options (`headless`, `args`, `executablePath`, `proxy`, ...) are accepted for compatibility but ignored on HarmonyOS: browsers are started through `aa start` and cannot receive arbitrary command-line arguments.
+
+## Environment Variables
+
+| Variable | Description |
+| --- | --- |
+| `HARMONY_BROWSER` | Selects the browser bundle name (or a known channel name such as `chrome`). Takes precedence over the `channel` option. |
+| `HARMONY_DEBUG_PORT` | Overrides the debug port for TCP-based browsers. |
+| `HDC_BINARY` | Path to the `hdc` executable when it is not available in `PATH`. |
 
 ## Known Limitations
 

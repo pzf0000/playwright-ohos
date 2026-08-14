@@ -12,10 +12,10 @@
   "bin": {
     "playwright-ohos": "bin/playwright-ohos.cjs"
   },
-  "files":[
+  "files": [
     "dist",
     "bin",
-    "README.md"      
+    "README.md"
   ],
   "scripts": {
     "build": "vite build",
@@ -23,7 +23,7 @@
     "patch": "node bin/playwright-ohos.cjs",
     "rebuild": "pnpm install --force && pnpm build && pnpm patch",
     "postinstall": "node bin/playwright-ohos.cjs",
-    "test": "npx playwright test --config/playwright.config.ts"
+    "test": "playwright test --config=tests/playwright.config.ts"
   },
   "dependencies": {
     "debug": "^4.3.0"
@@ -33,12 +33,17 @@
   },
   "devDependencies": {
     "@playwright/test": "1.60.0",
-    "@types/debug":"^4.1.0",
+    "@types/debug": "^4.1.0",
     "@types/node": "^26.1.0",
     "dotenv": "^17.4.2",
+    "formidable": "^3.5.4",
+    "mime": "^4.1.0",
     "ohos-signpost": "^1.0.0",
+    "playwright": "1.60.0",
+    "playwright-core": "1.60.0",
     "terser": "^5.39.0",
     "typescript": "^5.0.0",
-    "vite": "^6.3.0"
+    "vite": "^6.3.0",
+    "ws": "^8.21.3"
   }
 }
