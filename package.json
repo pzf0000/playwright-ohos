@@ -34,9 +34,10 @@
   "devDependencies": {
     "@playwright/test": "1.60.0",
     "@types/debug": "^4.1.0",
+    "@types/formidable": "^2.0.4",
     "@types/node": "^26.1.0",
     "dotenv": "^17.4.2",
-    "formidable": "^3.5.4",
+    "formidable": "^2.1.1",
     "mime": "^4.1.0",
     "ohos-signpost": "^1.0.0",
     "playwright": "1.60.0",
