@@ -99,6 +99,22 @@ npx playwright test --project=chrome-beta
 
 > **Note:** Do not run different browsers in parallel - they contend for the same debug port. Always use `workers: 1`.
 
+## Test Coverage
+
+playwright-ohos is validated against the official Playwright test suite, which consists of two kinds of tests:
+
+- **Page-level tests** - exercise the high-level Page API: navigation, interaction, screenshots and assertions.
+- **Library-level tests** - exercise the lower-level browser APIs: browser and context lifecycle, network, downloads and the browser object itself.
+
+The table below shows the pass rate of the test. Pass rate = passed / (total - skipped).
+
+| Test Category | Huawei Browser | Haitai Browser |
+| --- | --- | --- |
+| Page-level tests | 91.92% | 97.73% |
+| Library-level tests | 57.86% | 80.82% |
+| **All tests** | **78.24%** | **90.94%** |
+
+
 ## Launch Options
 
 `chromium.launch()` accepts the standard Playwright options; the following additional options control the HarmonyOS launcher:
