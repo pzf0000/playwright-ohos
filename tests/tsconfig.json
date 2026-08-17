@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "noImplicitOverride": true,
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
+    "useDefineForClassFields": false,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"],
+  "exclude": [
+    "library/component-parser.spec.ts",
+    "library/css-parser.spec.ts",
+    "library/inspector/**",
+    "library/locator-generator.spec.ts",
+    "library/snapshot-renderer.spec.ts",
+    "library/trace-viewer.spec.ts",
+    "library/tracing.spec.ts",
+    "library/unit/**"
+  ]
+}
