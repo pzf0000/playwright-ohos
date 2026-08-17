@@ -81,6 +81,30 @@ export class HdcBackend {
       await this._run(['fport', 'rm', match[1], match[2]]).catch(() => {});
     }
   }
+
+  /**
+   * Connects the local wireless-debugging target when no device is
+   * connected: the port is read from `param get persist.hdc.port` and the
+   * localhost target is connected with `hdc tconn`. On HarmonyOS 7.1+ the
+   * ohos-aa path does not need a device connection, so the caller only
+   * invokes this for the HDC path.
+   */
+  async ensureDeviceConnected(): Promise<void> {
+    const targets = await this._run(['list', 'targets']).catch(() => ({ stdout: '', stderr: '', code: 1 }));
+    if (targets.stdout.trim()) {
+      return;
+    }
+    const portResult = await execFileAsync('param', ['get', 'persist.hdc.port'], 5000).catch(() => ({ stdout: '', stderr: '', code: 1 }));
+    const port = portResult.stdout.trim();
+    if (!/^\d+$/.test(port)) {
+      throw new Error(`cannot determine the wireless debugging port (param get persist.hdc.port returned: ${JSON.stringify(port)})`);
+    }
+    await this._run(['tconn', `127.0.0.1:${port}`]);
+    const after = await this._run(['list', 'targets']);
+    if (!after.stdout.trim()) {
+      throw new Error(`hdc tconn 127.0.0.1:${port} did not connect; enable wireless debugging on the device first`);
+    }
+  }
 }
 
 /** Takes a screenshot through the HDC backend (used by the CDP screenshot fallback). */

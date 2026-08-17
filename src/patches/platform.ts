@@ -124,6 +124,24 @@ ${match.slice(headEnd)}`;
           };`,
   },
   {
+    // The client validates launch params against a strict schema and drops
+    // unknown keys, so the HarmonyOS launch options are registered here.
+    // (Bundle layout only for now; older layouts fall back to the
+    // HARMONY_* environment variables in resolveLaunchConfig.)
+    id: 'patch-1g-launch-schema',
+    description: 'register HarmonyOS keys in the launch schema',
+    versions: '>=1.60.0',
+    find: /scheme\.BrowserTypeLaunchParams = tObject\(\{\n\s+channel: tOptional\(tString\),/g,
+    replace: () => `scheme.BrowserTypeLaunchParams = tObject({
+      ${marker('patch-1g-launch-schema')}
+      harmonyBundleName: tOptional(tString),
+      harmonyDebugPort: tOptional(tFloat),
+      harmonyAbility: tOptional(tString),
+      harmonyLaunchUrl: tOptional(tString),
+      harmonyArgs: tOptional(tArray(tString)),
+      channel: tOptional(tString),`,
+  },
+  {
     // validateBrowserContextOptions does not accept undefined; only validate
     // when a persistent context is actually created.
     id: 'patch-1f-validate-guard',

@@ -93,7 +93,12 @@ const applyPatchesToFile = (filePath: string, patches: PatchDefinition[], versio
 
 export const applyPatches = (packageRoot: string): PatchResult[] => {
   const target = detectTarget(packageRoot);
-  const patches = target.isBundle ? bundlePatches : filesPatches;
+  // A/B verification support: PW_OHOS_SKIP_PATCHES lists patch ids that are
+  // not applied, so the behavior with and without a patch can be compared.
+  // Skipping only works against pristine playwright-core files (run
+  // `pnpm install --force` first); already-patched files keep their code.
+  const skipIds = new Set((process.env.PW_OHOS_SKIP_PATCHES || '').split(',').map(id => id.trim()).filter(Boolean));
+  const patches = (target.isBundle ? bundlePatches : filesPatches).filter(patch => !skipIds.has(patch.id));
   const grouped = new Map<string, PatchDefinition[]>();
   for (const patch of patches) {
     const file = patch.file || DEFAULT_BUNDLE_FILE;
