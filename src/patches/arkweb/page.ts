@@ -1,6 +1,8 @@
-// ArkWeb page patches: creating new targets degrades after a handful of
-// tests, so an existing page is reused and closing it only navigates to
-// about:blank instead of closing the target.
+// ArkWeb page patches: targets created through Target.createTarget attach
+// without fully working frame sessions (page.screenshot and friends hang on
+// them), so an existing page is reused and closing it only navigates to
+// about:blank instead of closing the target. A/B removal experiments showed
+// hangs with the native path, so both patches stay.
 import { marker } from '../types';
 import type { PatchDefinition } from '../types';
 
