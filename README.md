@@ -160,7 +160,7 @@ Chromium-based browsers (such as Haitai Browser) are not affected by the ArkWeb 
 
 ### Patch Mechanism
 
-Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 22 patches into `playwright-core`'s bundled output (`coreBundle.js`).
+Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 23 patches into `playwright-core`'s bundled output (`coreBundle.js`).
 
 Patches are marked with `/* @playwright-ohos-patched */` to prevent duplicated application. Run `npx playwright-ohos` to re-apply the patches.
 
@@ -186,6 +186,7 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
 | Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |
 | Patch 8 | `boundingBox` `Math.round` (sub-pixel precision fix) | `_hdcBackend` |
+| Patch 8b | screencast frame viewport reports the emulated viewport | `_hdcBackend` |
 | Patch 9b/9c | storage-state page kept alive; `newPage` failure guard | `_isArkWeb` |
 
 ### HDC Connection Flow

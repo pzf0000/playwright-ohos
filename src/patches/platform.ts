@@ -192,6 +192,24 @@ ${match.slice(headEnd)}`;
           }`,
   },
   {
+    // ArkWeb reports the physical device size (as a float) instead of the
+    // emulated viewport in the screencast frame metadata; the client
+    // schema also validates the values as integers. Report the last
+    // emulated viewport like desktop Chrome, falling back to the rounded
+    // device size when no viewport was ever applied.
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    find: /const (\w+) = Buffer\.from\((\w+)\.data, "base64"\);\n\s+this\._page\.screencast\.onScreencastFrame\(\{\n\s+\1,\n\s+frameSwapWallTime: \2\.metadata\.timestamp \? \2\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+viewportWidth: \2\.metadata\.deviceWidth,\n\s+viewportHeight: \2\.metadata\.deviceHeight\n\s+\}, \(\) => \{/g,
+    replace: (match, bufferName, payloadName) => `const ${bufferName} = Buffer.from(${payloadName}.data, "base64");
+        ${marker('patch-8b-screencast-viewport')}
+        this._page.screencast.onScreencastFrame({
+          buffer: ${bufferName},
+          frameSwapWallTime: ${payloadName}.metadata.timestamp ? ${payloadName}.metadata.timestamp * 1e3 : Date.now(),
+          viewportWidth: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(${payloadName}.metadata.deviceWidth)) : ${payloadName}.metadata.deviceWidth,
+          viewportHeight: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(${payloadName}.metadata.deviceHeight)) : ${payloadName}.metadata.deviceHeight
+        }, () => {`,
+  },
+  {
     // Round bounding boxes reported by the device to fix sub-pixel
     // precision differences.
     id: 'patch-8-bounding-box',
@@ -438,6 +456,20 @@ export const platformFilesPatches: PatchDefinition[] = [
       }
       return scripts;
     }`,
+  },
+  {
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /const (\w+) = Buffer\.from\((\w+)\.data, ['"]base64['"]\);\n\s+this\._page\.screencast\.onScreencastFrame\(\{\n\s+\1,\n\s+frameSwapWallTime: \2\.metadata\.timestamp \? \2\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+viewportWidth: \2\.metadata\.deviceWidth,\n\s+viewportHeight: \2\.metadata\.deviceHeight/g,
+    replace: (match, bufferName, payloadName) => `const ${bufferName} = Buffer.from(${payloadName}.data, 'base64');
+      ${marker('patch-8b-screencast-viewport')}
+      this._page.screencast.onScreencastFrame({
+        buffer: ${bufferName},
+        frameSwapWallTime: ${payloadName}.metadata.timestamp ? ${payloadName}.metadata.timestamp * 1e3 : Date.now(),
+        viewportWidth: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(${payloadName}.metadata.deviceWidth)) : ${payloadName}.metadata.deviceWidth,
+        viewportHeight: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(${payloadName}.metadata.deviceHeight)) : ${payloadName}.metadata.deviceHeight`,
   },
   {
     id: 'patch-8-bounding-box',
