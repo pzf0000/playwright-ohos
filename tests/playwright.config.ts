@@ -52,7 +52,6 @@ for (const channel of channels) {
       /component-parser\.spec\.ts/,
       /css-parser\.spec\.ts/,
       /inspector\//,
-      /locator-generator\.spec\.ts/,
       // Requires the recorder and a local chromium executable.
       /selector-generator\.spec\.ts/,
       /snapshot-renderer\.spec\.ts/,
@@ -60,6 +59,11 @@ for (const channel of channels) {
       /trace-viewer-scrub\.spec\.ts/,
       /tracing\.spec\.ts/,
       /unit\//,
+      // launchServer requires a local browser process; HDC-launched browsers 
+      // have no browserProcess, and pipe mode is blocked by the OS sandbox.
+      /browsertype-connect\.spec\.ts/,
+      /browser-server\.spec\.ts/,
+      /signals\.spec\.ts/,
     ],
     snapshotPathTemplate: `{testDir}/{testFileDir}/{testFileName}-snapshots/{arg}-${browserName}{ext}`,
     use: {
