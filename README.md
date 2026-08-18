@@ -106,13 +106,13 @@ playwright-ohos is validated against the official Playwright test suite, which c
 - **Page-level tests** - exercise the high-level Page API: navigation, interaction, screenshots and assertions.
 - **Library-level tests** - exercise the lower-level browser APIs: browser and context lifecycle, network, downloads and the browser object itself.
 
-The table below shows the pass rate of the test. Pass rate = passed / (total - skipped).
+The table below shows the pass rate after two test rounds: round 1 runs the full suite and round 2 reruns the round-1 failures; a test counts as passed when it passes in any round. Pass rate = passed / (total - skipped).
 
 | Test Category | Huawei Browser | Haitai Browser |
 | --- | --- | --- |
-| Page-level tests | 91.92% | 97.73% |
-| Library-level tests | 57.86% | 80.82% |
-| **All tests** | **78.24%** | **90.94%** |
+| Page-level tests | 93.37% | 97.77% |
+| Library-level tests | 59.96% | 81.20% |
+| **All tests** | **79.95%** | **91.12%** |
 
 
 ## Launch Options
@@ -124,8 +124,13 @@ The table below shows the pass rate of the test. Pass rate = passed / (total - s
 | `channel` | `string` | Selects the browser: `'huaweiBrowser'` (default), `'chrome'` (Haitai Browser) or `'chrome-beta'` (Chrome for Dev). |
 | `harmonyBundleName` | `string` | Overrides the browser bundle name, e.g. `'com.huawei.hmos.browser'`. The ability defaults to `MainAbility` for unknown bundles. |
 | `harmonyDebugPort` | `number` | Overrides the debug port for TCP-based browsers. Browsers that accept launch arguments pick a free port automatically; fixed-port browsers (such as Chrome for Dev) use `9222`. |
+| `harmonyAbility` | `string` | Overrides the ability name used in `aa start`, e.g. `'EntryAbility'`. |
+| `harmonyLaunchUrl` | `string` | Opens the given URL at launch (`aa start -U <url>`). Useful for the Huawei Browser, whose default page has no debuggable content. |
+| `harmonyArgs` | `string[]` | Extra command-line flags appended to the default stability flags for browsers that accept launch arguments. |
 
 Other launch options (`headless`, `args`, `executablePath`, `proxy`, ...) are accepted for compatibility but ignored on HarmonyOS: browsers are started through `aa start` and cannot receive arbitrary command-line arguments.
+
+`takeScreenshot(page, options)` is exported by playwright-ohos: it uses the native page screenshot (which supports `clip`, `format` and `quality`) and falls back to the HDC display capture when that fails.
 
 ## Environment Variables
 
@@ -145,7 +150,7 @@ The following features are restricted by ArkWeb and are unsupported on behave in
 
 - **Page close:** ArkWeb reuses existing pages; `page.close()` disconnects the browser. Avoid closing page in tests -- let `context.close()` handle cleanup.
 
-- **Screenshots:** `page.screenshot()` works through the HDC fallback, but layout-dependent commands such as `boundingBox()` and `scrollIntoViewIfNeeded()` maybe inaccurate.
+- **Screenshots:** `page.screenshot()` uses the native CDP screenshot, which supports `clip`, `format` and `quality`; it falls back to the HDC display capture only when the CDP call fails. Layout-dependent commands such as `boundingBox()` and `scrollIntoViewIfNeeded()` may be inaccurate.
 
 Chromium-based browsers (such as Haitai Browser) are not affected by these limitations.
 
@@ -153,7 +158,7 @@ Chromium-based browsers (such as Haitai Browser) are not affected by these limit
 
 ### Patch Mechanism
 
-Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 11 patches into `playwright-core`'s bundled output (`coreBundle.js).
+Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 22 patches into `playwright-core`'s bundled output (`coreBundle.js).
 
 Patches are marked with `/* @playwright-ohos-patched */` to prevent duplicated application. Run `npx playwright-ohos` to re-apply the patches.
 
@@ -165,17 +170,21 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 
 | Patch | Purpose | Guard |
 | --- | --- | --- |
-| Patch 0 | openharmony platform cache directory | `process.platform === 'openharmony` |
-| Patch 1 | `chromium.launch()` delegates to HDC launch | `process.platform === 'openharmony` |
-| Patch 1b | `launchPersistentContext` throws an error | `process.platform === 'openharmony` |
-| Patch 2 | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
-| Patch 3 | CDP screenshot HDC fallback | `_hdcBackend` |
+| Patch 0 | openharmony platform cache and daemon directories | `process.platform === 'openharmony'` |
+| Patch 1 | `chromium.launch()` delegates to HDC launch | `process.platform === 'openharmony'` |
+| Patch 1b | `launchPersistentContext` throws an error | `process.platform === 'openharmony'` |
+| Patch 1c/1d | HDC backend and ArkWeb flags forwarded through `CRBrowser.connect` | `process.platform === 'openharmony'` |
+| Patch 1e/1f | skip the default browser context for Chromium-based browsers | `__ohosNoDefaultContext` |
+| Patch 1g | registers the HarmonyOS options in the launch schema (option passthrough) | `process.platform === 'openharmony'` |
+| Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `process.platform === 'openharmony'` |
+| Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
+| Patch 3b | CDP screenshot falls back to the HDC display capture on failure | `_hdcBackend` |
 | Patch 4 | mouseWheel supplementary `scrollBy` scroll | `_isArkWeb` |
 | Patch 5 | ArkWeb reuses the default BrowserContext | `_isArkWeb` |
-| Patch 6 | ArkWeb reuses an existing page  | `_isArkWeb` |
-| Patch 7 | ArkWeb context close cleans up instead of closing the browser  | `_isArkWeb` |
-| Patch 8 | `boundngBox` `Math.round` (sub-pixel precison fix)  | `_hdcBackend` |
-| Patch 9 | `exposeFunction` cleanup in ArkWeb `doClose` path  | `_isArkWeb` |
+| Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
+| Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |
+| Patch 8 | `boundingBox` `Math.round` (sub-pixel precision fix) | `_hdcBackend` |
+| Patch 9b/9c | storage-state page kept alive; `newPage` failure guard | `_isArkWeb` |
 
 ### HDC Connection Flow
 

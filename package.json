@@ -20,8 +20,8 @@
   "scripts": {
     "build": "vite build",
     "prepare": "ohos-signpost",
-    "patch": "node bin/playwright-ohos.cjs",
-    "rebuild": "pnpm install --force && pnpm build && pnpm patch",
+    "patch-pkg": "node bin/playwright-ohos.cjs",
+    "rebuild": "pnpm install --force && pnpm build && pnpm patch-pkg",
     "postinstall": "node bin/playwright-ohos.cjs",
     "test": "playwright test --config=tests/playwright.config.ts"
   },

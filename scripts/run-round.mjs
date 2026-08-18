@@ -181,6 +181,18 @@ if (grep) {
   args.push('--grep-invert', [...recorded].join('|'));
 }
 
+// playwright temp dirs (playwright-artifacts-*, pw-*) land in os.tmpdir(),
+// which points at the home directory on HarmonyOS. Redirect them into
+// node_modules/.playwright and drop leftovers of crashed runs at round
+// start (the runner only cleans up its own artifacts dir).
+const tempDir = path.resolve('node_modules/.playwright');
+fs.mkdirSync(tempDir, { recursive: true });
+for (const entry of fs.readdirSync(tempDir, { withFileTypes: true })) {
+  if (entry.isDirectory() && /^playwright-artifacts-|^pw-/.test(entry.name)) {
+    fs.rmSync(path.join(tempDir, entry.name), { recursive: true, force: true });
+  }
+}
+
 const childEnv = {
   ...process.env,
   // Restart the browser before every test unless explicitly disabled.
@@ -194,6 +206,12 @@ const childEnv = {
   // Optional CDP protocol traffic log (DEBUG=pw:protocol) for failure
   // analysis; enable with PW_OHOS_CDP_LOG=1. Written to round<N>.log.
   ...(process.env.PW_OHOS_CDP_LOG === '1' ? { DEBUG: [process.env.DEBUG, 'pw:protocol'].filter(Boolean).join(',') } : {}),
+  // On HarmonyOS /tmp is read-only, so TMPDIR points at the home directory
+  // and playwright temp dirs (playwright-artifacts-*, pw-*) pile up there.
+  // Redirect them into node_modules/.playwright instead.
+  TMPDIR: tempDir,
+  TMP: tempDir,
+  TEMP: tempDir,
 };
 
 let previousJson = null;
