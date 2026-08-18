@@ -10,7 +10,6 @@ import { spawnSync } from 'child_process';
 import { platformBundlePatches, platformFilesPatches } from './platform';
 import { arkwebTargetBundlePatches, arkwebTargetFilesPatches } from './arkweb/targets';
 import { arkwebScreenshotBundlePatches, arkwebScreenshotFilesPatches } from './arkweb/screenshot';
-import { arkwebWheelBundlePatches, arkwebWheelFilesPatches } from './arkweb/wheel';
 import { arkwebContextBundlePatches, arkwebContextFilesPatches } from './arkweb/context';
 import { arkwebPageBundlePatches, arkwebPageFilesPatches } from './arkweb/page';
 import { arkwebStorageBundlePatches, arkwebStorageFilesPatches } from './arkweb/storage';
@@ -24,7 +23,6 @@ const bundlePatches: PatchDefinition[] = [
   ...platformBundlePatches,
   ...arkwebTargetBundlePatches,
   ...arkwebScreenshotBundlePatches,
-  ...arkwebWheelBundlePatches,
   ...arkwebContextBundlePatches,
   ...arkwebPageBundlePatches,
   ...arkwebStorageBundlePatches,
@@ -34,7 +32,6 @@ const filesPatches: PatchDefinition[] = [
   ...platformFilesPatches,
   ...arkwebTargetFilesPatches,
   ...arkwebScreenshotFilesPatches,
-  ...arkwebWheelFilesPatches,
   ...arkwebContextFilesPatches,
   ...arkwebPageFilesPatches,
   ...arkwebStorageFilesPatches,

@@ -3,7 +3,7 @@
 // through the shell.
 import { execFileSync } from 'child_process';
 
-import { execFileAsync } from '../utils';
+import { execFileAsync, resolveCommandPath } from '../utils';
 
 const OHOS_AA_DEFAULT_PATH = '/system/bin/cli_tool/executable/ohos-aa';
 
@@ -16,24 +16,21 @@ const isExecutable = (candidate: string): boolean => {
   }
 };
 
-/** Resolves the ohos-aa executable. */
+let cachedOhosAa: string | undefined | null = null;
+
+/** Resolves the ohos-aa executable, cached for the process lifetime. */
 export const resolveOhosAa = (): string | undefined => {
-  const candidates = [process.env.OHOS_AA_BINARY, 'ohos-aa', OHOS_AA_DEFAULT_PATH].filter((c): c is string => !!c);
+  if (cachedOhosAa !== null) {
+    return cachedOhosAa;
+  }
+  const candidates = [process.env.OHOS_AA_BINARY, resolveCommandPath('ohos-aa'), OHOS_AA_DEFAULT_PATH].filter((c): c is string => !!c);
   for (const candidate of candidates) {
     if (isExecutable(candidate)) {
+      cachedOhosAa = candidate;
       return candidate;
     }
   }
-  for (const shell of ['zsh', 'bash', 'sh']) {
-    try {
-      const out = execFileSync(shell, ['-ic', 'which ohos-aa 2>/dev/null || true'], { encoding: 'utf8', timeout: 8000 }).trim();
-      const match = out.match(/aliased to (\S+)/) || out.match(/^(\S+)$/m);
-      if (match && isExecutable(match[1])) {
-        return match[1];
-      }
-    } catch {
-    }
-  }
+  cachedOhosAa = undefined;
   return undefined;
 };
 

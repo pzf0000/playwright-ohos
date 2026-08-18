@@ -136,6 +136,12 @@ const hdcShellWithRetry = async (hdc: HdcBackend, command: string, attempts = 2)
   return { stdout: '', stderr: '', code: 1 };
 };
 
+// ohos-aa force-stops the browser without a device connection, covering
+// close and pre-launch cleanup when the HDC shell is unavailable.
+const ohosAaForceStop = (ohosAa: string) => async (bundleName: string): Promise<void> => {
+  await execOhosAa(ohosAa, ['force-stop', '--bundlename', bundleName]);
+};
+
 const startBrowserViaHdc = async (hdc: HdcBackend, config: LaunchConfig): Promise<string> => {
   if (process.env.PW_OHOS_DEBUG === '1') {
     console.log(`[playwright-ohos] launch config: ${JSON.stringify(config)}`);
@@ -153,8 +159,11 @@ const startBrowserViaHdc = async (hdc: HdcBackend, config: LaunchConfig): Promis
   await hdc.cleanupStaleForwards();
   // Best-effort cleanup: a failed force-stop under load must not block the
   // launch, aa start brings the browser up regardless.
-  await hdc.shell(`aa force-stop ${config.bundleName}`).catch(error => {
+  await hdc.shell(`aa force-stop ${config.bundleName}`).catch(async error => {
     console.warn(`[playwright-ohos] force-stop ${config.bundleName} failed: ${String(error.message).slice(0, 100)}`);
+    if (ohosAa) {
+      await ohosAaForceStop(ohosAa)(config.bundleName).catch(() => {});
+    }
   });
   if (config.kind === 'tcp') {
     // Browsers that accept cmdArgs pick a free local port so an occupied
@@ -208,7 +217,8 @@ const patchBrowserClose = (browser: any, hdc: HdcBackend, config: LaunchConfig):
       return;
     }
     closed = true;
-    await hdc.close(config.bundleName);
+    const ohosAa = resolveOhosAa();
+    await hdc.close(config.bundleName, ohosAa ? ohosAaForceStop(ohosAa) : undefined);
   };
   const originalClose = browserProcess.close?.bind(browserProcess);
   const originalKill = browserProcess.kill?.bind(browserProcess);

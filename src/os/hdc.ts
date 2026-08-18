@@ -4,14 +4,16 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { execFileAsync } from '../utils';
+import { execFileAsync, resolveCommandPath } from '../utils';
 
 export class HdcBackend {
   readonly binary: string;
   private readonly _forwards: string[] = [];
 
   constructor() {
-    this.binary = process.env.HDC_BINARY || 'hdc';
+    // Aliased hdc commands are invisible to execFile, so resolve the real
+    // path of the binary once per process.
+    this.binary = process.env.HDC_BINARY || resolveCommandPath('hdc') || 'hdc';
   }
 
   private _run(args: string[], timeoutMs = 30000) {
@@ -57,8 +59,14 @@ export class HdcBackend {
   }
 
   /** Stops the browser app and removes tracked port forwards. */
-  async close(bundleName: string): Promise<void> {
-    await this.shell(`aa force-stop ${bundleName}`).catch(() => {});
+  async close(bundleName: string, fallbackStop?: (bundle: string) => Promise<void>): Promise<void> {
+    try {
+      await this.shell(`aa force-stop ${bundleName}`);
+    } catch {
+      if (fallbackStop) {
+        await fallbackStop(bundleName).catch(() => {});
+      }
+    }
     for (const forward of this._forwards) {
       const [local, remote] = forward.split(' ');
       await this._run(['fport', 'rm', local, remote]).catch(() => {});

@@ -10,6 +10,8 @@
 
 - `hdc` (HarmonyOS Device Connector) installed and available in PATH
 
+- `ffmpeg` (video recording and screencast): install it through HarmonyBrew with `brew install ffmpeg`. On HarmonyOS playwright-ohos resolves the system ffmpeg automatically, no `PLAYWRIGHT_HOST_PLATFORM_OVERRIDE` needed.
+
 ## Installation
 
 ```bash
@@ -106,13 +108,13 @@ playwright-ohos is validated against the official Playwright test suite, which c
 - **Page-level tests** - exercise the high-level Page API: navigation, interaction, screenshots and assertions.
 - **Library-level tests** - exercise the lower-level browser APIs: browser and context lifecycle, network, downloads and the browser object itself.
 
-The table below shows the pass rate after two test rounds: round 1 runs the full suite and round 2 reruns the round-1 failures; a test counts as passed when it passes in any round. Pass rate = passed / (total - skipped).
+The table below shows the merged pass rate after three test rounds: round 1 runs the full suite, round 2 reruns the round-1 failures and round 3 reruns the round-2 failures plus every test skipped in the earlier rounds; a test counts as passed when it passes in any round. Pass rate = passed / (total - skipped). Compute the merged totals with `node scripts/merge-rounds.mjs`.
 
 | Test Category | Huawei Browser | Haitai Browser |
 | --- | --- | --- |
-| Page-level tests | 93.37% | 97.77% |
-| Library-level tests | 59.96% | 81.20% |
-| **All tests** | **79.95%** | **91.12%** |
+| Page-level tests | 93.13% | 97.66% |
+| Library-level tests | 60.18% | 83.91% |
+| **All tests** | **80.00%** | **92.19%** |
 
 
 ## Launch Options
@@ -152,13 +154,13 @@ The following features are restricted by ArkWeb and are unsupported on behave in
 
 - **Screenshots:** `page.screenshot()` uses the native CDP screenshot, which supports `clip`, `format` and `quality`; it falls back to the HDC display capture only when the CDP call fails. Layout-dependent commands such as `boundingBox()` and `scrollIntoViewIfNeeded()` may be inaccurate.
 
-Chromium-based browsers (such as Haitai Browser) are not affected by these limitations.
+Chromium-based browsers (such as Haitai Browser) are not affected by the ArkWeb limitations above, except `launchPersistentContext`, which is unsupported on HarmonyOS in general.
 
 ## How It Works
 
 ### Patch Mechanism
 
-Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 22 patches into `playwright-core`'s bundled output (`coreBundle.js).
+Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 22 patches into `playwright-core`'s bundled output (`coreBundle.js`).
 
 Patches are marked with `/* @playwright-ohos-patched */` to prevent duplicated application. Run `npx playwright-ohos` to re-apply the patches.
 
@@ -171,6 +173,7 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch | Purpose | Guard |
 | --- | --- | --- |
 | Patch 0 | openharmony platform cache and daemon directories | `process.platform === 'openharmony'` |
+| Patch 0-ffmpeg | ffmpeg resolves to the system ffmpeg executable | `process.platform === 'openharmony'` |
 | Patch 1 | `chromium.launch()` delegates to HDC launch | `process.platform === 'openharmony'` |
 | Patch 1b | `launchPersistentContext` throws an error | `process.platform === 'openharmony'` |
 | Patch 1c/1d | HDC backend and ArkWeb flags forwarded through `CRBrowser.connect` | `process.platform === 'openharmony'` |
@@ -179,7 +182,6 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `process.platform === 'openharmony'` |
 | Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
 | Patch 3b | CDP screenshot falls back to the HDC display capture on failure | `_hdcBackend` |
-| Patch 4 | mouseWheel supplementary `scrollBy` scroll | `_isArkWeb` |
 | Patch 5 | ArkWeb reuses the default BrowserContext | `_isArkWeb` |
 | Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
 | Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |

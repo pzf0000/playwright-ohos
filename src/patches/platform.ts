@@ -30,6 +30,44 @@ export const platformBundlePatches: PatchDefinition[] = [
 ${indent}if (!localCacheDir)`,
   },
   {
+    // Playwright ships no ffmpeg for the openharmony platform, so the
+    // ffmpeg executable resolves to the system ffmpeg instead of the
+    // downloaded one. Requires node builtins only: the resolution runs
+    // while coreBundle.js is still loading, before the patched module
+    // graph could answer a require of the playwright-ohos entry.
+    id: 'patch-0-ffmpeg',
+    description: 'ffmpeg executable resolves to the system ffmpeg',
+    find: /const ffmpegExecutable = findExecutablePath\((\w+)\.dir, "ffmpeg"\);/g,
+    replace: (match, ffmpegName) => `const ffmpegExecutable = process.platform === "openharmony" ? (() => {
+        ${marker('patch-0-ffmpeg')}
+        const candidates = [];
+        try {
+          const { execFileSync } = require("child_process");
+          const out = execFileSync("sh", ["-c", "command -v ffmpeg 2>/dev/null || true"], { encoding: "utf8", timeout: 8000 }).trim();
+          const first = out.split("\\n")[0].trim();
+          if (first) {
+            candidates.push(first);
+          }
+        } catch {
+        }
+        try {
+          const { homedir } = require("os");
+          const { join } = require("path");
+          candidates.push(join(homedir(), ".harmonybrew", "bin", "ffmpeg"));
+        } catch {
+        }
+        for (const candidate of candidates) {
+          try {
+            if (require("fs").existsSync(candidate)) {
+              return candidate;
+            }
+          } catch {
+          }
+        }
+        return void 0;
+      })() : findExecutablePath(${ffmpegName}.dir, "ffmpeg");`,
+  },
+  {
     // chromium.launch() delegates to the HDC launcher on openharmony.
     id: 'patch-1-launch',
     description: 'chromium.launch() delegates to HDC launch',
@@ -178,6 +216,41 @@ ${match.slice(headEnd)}`;
 
 // Patches for the separate-file layout (playwright-core 1.51-1.59).
 export const platformFilesPatches: PatchDefinition[] = [
+  {
+    id: 'patch-0-ffmpeg',
+    description: 'ffmpeg executable resolves to the system ffmpeg',
+    file: 'lib/server/registry/index.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /const ffmpegExecutable = findExecutablePath\((\w+)\.dir, ['"]ffmpeg['"]\);/g,
+    replace: (match, ffmpegName) => `const ffmpegExecutable = process.platform === 'openharmony' ? (() => {
+      ${marker('patch-0-ffmpeg')}
+      const candidates = [];
+      try {
+        const { execFileSync } = require('child_process');
+        const out = execFileSync('sh', ['-c', 'command -v ffmpeg 2>/dev/null || true'], { encoding: 'utf8', timeout: 8000 }).trim();
+        const first = out.split('\\n')[0].trim();
+        if (first) {
+          candidates.push(first);
+        }
+      } catch {
+      }
+      try {
+        const { homedir } = require('os');
+        const { join } = require('path');
+        candidates.push(join(homedir(), '.harmonybrew', 'bin', 'ffmpeg'));
+      } catch {
+      }
+      for (const candidate of candidates) {
+        try {
+          if (require('fs').existsSync(candidate)) {
+            return candidate;
+          }
+        } catch {
+        }
+      }
+      return void 0;
+    })() : findExecutablePath(${ffmpegName}.dir, 'ffmpeg');`,
+  },
   {
     id: 'patch-0-cache-dir',
     description: 'openharmony platform cache directory',
