@@ -12,6 +12,18 @@ export const arkwebContextBundlePatches: PatchDefinition[] = [
     replace: (match, optionsName) => `async doCreateNewContext(${optionsName}) {
         ${marker('patch-5-reuse-context')}
         if (this._isArkWeb && this._defaultContext) {
+          // The reused context would drop the requested viewport; apply it
+          // so pages render emulated like on desktop chromium (the last
+          // requested context wins).
+          if (${optionsName}.viewport) {
+            this._defaultContext._options.viewport = ${optionsName}.viewport;
+            this._defaultContext._options.screen = ${optionsName}.screen || ${optionsName}.viewport;
+            this._defaultContext._options.deviceScaleFactor = ${optionsName}.deviceScaleFactor || this._defaultContext._options.deviceScaleFactor || 1;
+            for (const crPage of this._defaultContext._crPages()) {
+              crPage._page._setEmulatedSize({ viewport: ${optionsName}.viewport, screen: ${optionsName}.screen || ${optionsName}.viewport });
+              await crPage.updateEmulatedViewportSize();
+            }
+          }
           return this._defaultContext;
         }
         const proxy = ${optionsName}.proxyOverride || ${optionsName}.proxy;
@@ -82,6 +94,15 @@ export const arkwebContextFilesPatches: PatchDefinition[] = [
     replace: (match, optionsName) => `async doCreateNewContext(${optionsName}) {
     ${marker('patch-5-reuse-context')}
     if (this._isArkWeb && this._defaultContext) {
+      if (${optionsName}.viewport) {
+        this._defaultContext._options.viewport = ${optionsName}.viewport;
+        this._defaultContext._options.screen = ${optionsName}.screen || ${optionsName}.viewport;
+        this._defaultContext._options.deviceScaleFactor = ${optionsName}.deviceScaleFactor || this._defaultContext._options.deviceScaleFactor || 1;
+        for (const crPage of this._defaultContext._crPages()) {
+          crPage._setEmulatedSize({ viewport: ${optionsName}.viewport, screen: ${optionsName}.screen || ${optionsName}.viewport });
+          await crPage.updateEmulatedViewportSize();
+        }
+      }
       return this._defaultContext;
     }
     const proxy = ${optionsName}.proxyOverride || ${optionsName}.proxy;

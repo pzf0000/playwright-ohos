@@ -182,7 +182,7 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `process.platform === 'openharmony'` |
 | Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
 | Patch 3b | CDP screenshot falls back to the HDC display capture on failure | `_hdcBackend` |
-| Patch 5 | ArkWeb reuses the default BrowserContext | `_isArkWeb` |
+| Patch 5 | ArkWeb reuses the default BrowserContext; the requested viewport is applied to it | `_isArkWeb` |
 | Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
 | Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |
 | Patch 8 | `boundingBox` `Math.round` (sub-pixel precision fix) | `_hdcBackend` |
