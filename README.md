@@ -112,9 +112,9 @@ The table below shows the merged pass rate after four test rounds: round 1 runs 
 
 | Test Category | Huawei Browser | Haitai Browser |
 | --- | --- | --- |
-| Page-level tests | 93.13% | 97.66% |
-| Library-level tests | 63.05% | 83.98% |
-| **All tests** | **81.15%** | **92.21%** |
+| Page-level tests | 93.13% | 97.80% |
+| Library-level tests | 63.33% | 84.12% |
+| **All tests** | **81.26%** | **92.36%** |
 
 
 ## Launch Options
@@ -160,7 +160,7 @@ Chromium-based browsers (such as Haitai Browser) are not affected by the ArkWeb 
 
 ### Patch Mechanism
 
-Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 23 patches into `playwright-core`'s bundled output (`coreBundle.js`).
+Playwright has no plugin system, for registering browser types - the browser types are hardcoded in `playwright-core`. DUring `postinstall`, This paclage inject 27 patches into `playwright-core`'s bundled output (`coreBundle.js`).
 
 Patches are marked with `/* @playwright-ohos-patched */` to prevent duplicated application. Run `npx playwright-ohos` to re-apply the patches.
 
@@ -180,7 +180,8 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch 1b | `launchPersistentContext` throws an error | `process.platform === 'openharmony'` |
 | Patch 1c/1d | HDC backend and ArkWeb flags forwarded through `CRBrowser.connect` | `process.platform === 'openharmony'` |
 | Patch 1g | registers the HarmonyOS options in the launch schema (option passthrough) | `process.platform === 'openharmony'` |
-| Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `_hdcBackend` |
+| Patch 1h | history navigation waits for the URL change; goBack/goForward skip the event-based wait | `_hdcBackend` |
+| Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding, contextmenu synthesis) | `_hdcBackend` |
 | Patch 3b | CDP screenshot falls back to the HDC display capture on failure | `_hdcBackend` |
 | Patch 8 | `boundingBox` `Math.round` (sub-pixel precision fix) | `_hdcBackend` |
 | Patch 8b | screencast frame viewport reports the emulated viewport | `_hdcBackend` |
@@ -196,6 +197,7 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch | Purpose | Guard |
 | --- | --- | --- |
 | Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
+| Patch 2b | startup page history reset on attach | `_isArkWeb` |
 | Patch 5 | ArkWeb reuses the default BrowserContext; the requested viewport, touch and mobile options are applied to it | `_isArkWeb` |
 | Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
 | Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |

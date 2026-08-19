@@ -18,6 +18,21 @@ export const arkwebTargetBundlePatches: PatchDefinition[] = [
           assert(targetInfo.browserContextId, "targetInfo: " + JSON.stringify(targetInfo, null, 2));
         } ${marker('patch-2a-context-assert')}`,
   },
+  {
+    // The device browser restores its previous session history when the
+    // startup page initializes; reset it once the page is ready so goBack
+    // on a fresh page behaves like a clean launch.
+    id: 'patch-2b-history-reset',
+    description: 'startup page history reset on attach',
+    find: /this\._crPages\.set\(targetInfo\.targetId, crPage\);/g,
+    replace: (match) => `${match}
+        ${marker('patch-2b-history-reset')}
+        if (this._isArkWeb) {
+          crPage._page.waitForInitializedOrError().then(async () => {
+            await crPage._mainFrameSession._client.send("Page.resetNavigationHistory").catch(() => {});
+          }).catch(() => {});
+        }`,
+  },
 ];
 
 export const arkwebTargetFilesPatches: PatchDefinition[] = [
@@ -36,5 +51,19 @@ export const arkwebTargetFilesPatches: PatchDefinition[] = [
     replace: (match, importName) => `if (!this._isArkWeb) {
       (0, ${importName}.assert)(targetInfo.browserContextId, "targetInfo: " + JSON.stringify(targetInfo, null, 2));
     } ${marker('patch-2a-context-assert')}`,
+  },
+  {
+    id: 'patch-2b-history-reset',
+    description: 'startup page history reset on attach',
+    file: 'lib/server/chromium/crBrowser.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /this\._crPages\.set\(targetInfo\.targetId, crPage\);/g,
+    replace: (match) => `${match}
+    ${marker('patch-2b-history-reset')}
+    if (this._isArkWeb) {
+      crPage._page.waitForInitializedOrError().then(async () => {
+        await crPage._mainFrameSession._client.send('Page.resetNavigationHistory').catch(() => {});
+      }).catch(() => {});
+    }`,
   },
 ];

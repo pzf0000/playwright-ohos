@@ -167,6 +167,116 @@ ${match.slice(headEnd)}`;
       channel: tOptional(tString),`,
   },
   {
+    // The device browsers report no CDP events for history navigations;
+    // wait until the URL actually changes so goBack/goForward complete.
+    id: 'patch-1h-history-navigation',
+    description: 'history navigation waits for the URL change',
+    find: /async _go\((\w+)\) \{\n\s+const (\w+) = await this\._mainFrameSession\._client\.send\("Page\.getNavigationHistory"\);\n\s+const entry = \2\.entries\[\2\.currentIndex \+ \1\];\n\s+if \(!entry\)\n\s+return false;\n\s+await this\._mainFrameSession\._client\.send\("Page\.navigateToHistoryEntry", \{ entryId: entry\.id \}\);\n\s+return true;\n\s+\}/g,
+    replace: (match, deltaName, historyName) => `async _go(${deltaName}) {
+        const ${historyName} = await this._mainFrameSession._client.send("Page.getNavigationHistory");
+        const entry = ${historyName}.entries[${historyName}.currentIndex + ${deltaName}];
+        if (!entry)
+          return false;
+        await this._mainFrameSession._client.send("Page.navigateToHistoryEntry", { entryId: entry.id });
+        ${marker('patch-1h-history-navigation')}
+        if (this._page.browserContext._browser._hdcBackend) {
+          const deadline = Date.now() + 30000;
+          while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 200));
+            const { result } = await this._mainFrameSession._client.send("Runtime.evaluate", {
+              expression: "location.href",
+              returnByValue: true
+            });
+            if (result?.value === entry.url)
+              break;
+          }
+          return entry.url;
+        }
+        return true;
+      }`,
+  },
+  {
+    // History navigation is confirmed by patch-1h inside _go, so the
+    // event-based wait (which the device browsers never satisfy) is
+    // skipped for goBack/goForward.
+    id: 'patch-1h-go-back',
+    description: 'goBack/goForward skip the event-based wait',
+    find: /async goBack\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, progressName, optionsName, errorName) => `async goBack(${progressName}, ${optionsName}) {
+        return this.mainFrame().raceNavigationAction(${progressName}, async () => {
+          ${marker('patch-1h-go-back')}
+          if (this.browserContext._browser._hdcBackend) {
+            const url = await ${progressName}.race(this.delegate.goBack());
+            if (!url) {
+              return null;
+            }
+            return {
+              guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+              url: () => url,
+              status: () => 200,
+              statusText: () => "",
+              headers: () => [],
+              timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+              fromServiceWorker: () => false,
+              request: () => ({
+                guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+                url: () => url,
+                method: () => "GET",
+                postDataBuffer: () => null,
+                headers: () => [],
+                resourceType: () => "document",
+                isNavigationRequest: () => true,
+                _existingResponse: () => null,
+                redirectedFrom: () => null,
+                serviceWorker: () => null,
+                frame: () => this.mainFrame(),
+                timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+                sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+              })
+            };
+          }
+          let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-forward',
+    description: 'goBack/goForward skip the event-based wait',
+    find: /async goForward\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, progressName, optionsName, errorName) => `async goForward(${progressName}, ${optionsName}) {
+        return this.mainFrame().raceNavigationAction(${progressName}, async () => {
+          ${marker('patch-1h-go-forward')}
+          if (this.browserContext._browser._hdcBackend) {
+            const url = await ${progressName}.race(this.delegate.goForward());
+            if (!url) {
+              return null;
+            }
+            return {
+              guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+              url: () => url,
+              status: () => 200,
+              statusText: () => "",
+              headers: () => [],
+              timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+              fromServiceWorker: () => false,
+              request: () => ({
+                guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+                url: () => url,
+                method: () => "GET",
+                postDataBuffer: () => null,
+                headers: () => [],
+                resourceType: () => "document",
+                isNavigationRequest: () => true,
+                _existingResponse: () => null,
+                redirectedFrom: () => null,
+                serviceWorker: () => null,
+                frame: () => this.mainFrame(),
+                timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+                sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+              })
+            };
+          }
+          let ${errorName};`,
+  },
+  {
     // ArkWeb reports the physical device size (as a float) instead of the
     // emulated viewport in the screencast frame metadata; the client
     // schema also validates the values as integers. Report the last
@@ -209,6 +319,115 @@ ${match.slice(headEnd)}`;
 
 // Patches for the separate-file layout (playwright-core 1.51-1.59).
 export const platformFilesPatches: PatchDefinition[] = [
+  {
+    id: 'patch-1h-history-navigation',
+    description: 'history navigation waits for the URL change',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /async _go\((\w+)\) \{\n\s+const (\w+) = await this\._mainFrameSession\._client\.send\(['"]Page\.getNavigationHistory['"]\);\n\s+const entry = \2\.entries\[\2\.currentIndex \+ \1\];\n\s+if \(!entry\)\n\s+return false;\n\s+await this\._mainFrameSession\._client\.send\(['"]Page\.navigateToHistoryEntry['"], \{ entryId: entry\.id \}\);\n\s+return true;\n\s+\}/g,
+    replace: (match, deltaName, historyName) => `async _go(${deltaName}) {
+    const ${historyName} = await this._mainFrameSession._client.send('Page.getNavigationHistory');
+    const entry = ${historyName}.entries[${historyName}.currentIndex + ${deltaName}];
+    if (!entry)
+      return false;
+    await this._mainFrameSession._client.send('Page.navigateToHistoryEntry', { entryId: entry.id });
+    ${marker('patch-1h-history-navigation')}
+    if (this._page.browserContext._browser._hdcBackend) {
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const { result } = await this._mainFrameSession._client.send('Runtime.evaluate', {
+          expression: 'location.href',
+          returnByValue: true
+        });
+        if (result?.value === entry.url)
+          break;
+      }
+      return entry.url;
+    }
+    return true;
+  }`,
+  },
+  {
+    id: 'patch-1h-go-back',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /async goBack\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, progressName, optionsName, errorName) => `async goBack(${progressName}, ${optionsName}) {
+    return this.mainFrame().raceNavigationAction(${progressName}, async () => {
+      ${marker('patch-1h-go-back')}
+      if (this.browserContext._browser._hdcBackend) {
+        const url = await ${progressName}.race(this.delegate.goBack());
+        if (!url) {
+          return null;
+        }
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-forward',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.51.0 <1.60.0',
+    find: /async goForward\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, progressName, optionsName, errorName) => `async goForward(${progressName}, ${optionsName}) {
+    return this.mainFrame().raceNavigationAction(${progressName}, async () => {
+      ${marker('patch-1h-go-forward')}
+      if (this.browserContext._browser._hdcBackend) {
+        const url = await ${progressName}.race(this.delegate.goForward());
+        if (!url) {
+          return null;
+        }
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
   {
     id: 'patch-0-ffmpeg',
     description: 'ffmpeg executable resolves to the system ffmpeg',

@@ -328,5 +328,32 @@ export const ohosInitScript = `
     }
   } catch (e) {
   }
+  // The device browsers fire contextmenu on mouse release, while desktop
+  // chromium fires it on press. Synthesize it on press and suppress the
+  // native one so the event fires exactly once.
+  try {
+    document.addEventListener('contextmenu', event => {
+      if (event.isTrusted) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, { capture: true });
+    document.addEventListener('mousedown', event => {
+      if (event.button !== 2 || event.defaultPrevented) {
+        return;
+      }
+      setTimeout(() => {
+        event.target.dispatchEvent(new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          button: 2,
+          view: window,
+          clientX: event.clientX,
+          clientY: event.clientY,
+        }));
+      }, 0);
+    }, true);
+  } catch (e) {
+  }
 })();
 `;
