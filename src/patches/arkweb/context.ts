@@ -12,16 +12,29 @@ export const arkwebContextBundlePatches: PatchDefinition[] = [
     replace: (match, optionsName) => `async doCreateNewContext(${optionsName}) {
         ${marker('patch-5-reuse-context')}
         if (this._isArkWeb && this._defaultContext) {
-          // The reused context would drop the requested viewport; apply it
-          // so pages render emulated like on desktop chromium (the last
+          // The reused context would drop the requested emulation options;
+          // apply them so pages behave like on desktop chromium (the last
           // requested context wins).
           if (${optionsName}.viewport) {
             this._defaultContext._options.viewport = ${optionsName}.viewport;
             this._defaultContext._options.screen = ${optionsName}.screen || ${optionsName}.viewport;
             this._defaultContext._options.deviceScaleFactor = ${optionsName}.deviceScaleFactor || this._defaultContext._options.deviceScaleFactor || 1;
-            for (const crPage of this._defaultContext._crPages()) {
+          }
+          if (${optionsName}.hasTouch !== undefined) {
+            this._defaultContext._options.hasTouch = ${optionsName}.hasTouch;
+          }
+          if (${optionsName}.isMobile !== undefined) {
+            this._defaultContext._options.isMobile = ${optionsName}.isMobile;
+          }
+          for (const crPage of this._defaultContext._crPages()) {
+            if (${optionsName}.viewport) {
               crPage._page._setEmulatedSize({ viewport: ${optionsName}.viewport, screen: ${optionsName}.screen || ${optionsName}.viewport });
               await crPage.updateEmulatedViewportSize();
+            }
+            // Touch emulation only takes effect before the page navigates,
+            // so it must be pushed here at context creation time.
+            if (${optionsName}.hasTouch !== undefined) {
+              await crPage._mainFrameSession._client.send("Emulation.setTouchEmulationEnabled", { enabled: !!${optionsName}.hasTouch });
             }
           }
           return this._defaultContext;
@@ -98,9 +111,20 @@ export const arkwebContextFilesPatches: PatchDefinition[] = [
         this._defaultContext._options.viewport = ${optionsName}.viewport;
         this._defaultContext._options.screen = ${optionsName}.screen || ${optionsName}.viewport;
         this._defaultContext._options.deviceScaleFactor = ${optionsName}.deviceScaleFactor || this._defaultContext._options.deviceScaleFactor || 1;
-        for (const crPage of this._defaultContext._crPages()) {
+      }
+      if (${optionsName}.hasTouch !== undefined) {
+        this._defaultContext._options.hasTouch = ${optionsName}.hasTouch;
+      }
+      if (${optionsName}.isMobile !== undefined) {
+        this._defaultContext._options.isMobile = ${optionsName}.isMobile;
+      }
+      for (const crPage of this._defaultContext._crPages()) {
+        if (${optionsName}.viewport) {
           crPage._setEmulatedSize({ viewport: ${optionsName}.viewport, screen: ${optionsName}.screen || ${optionsName}.viewport });
           await crPage.updateEmulatedViewportSize();
+        }
+        if (${optionsName}.hasTouch !== undefined) {
+          await crPage._mainFrameSession._client.send('Emulation.setTouchEmulationEnabled', { enabled: !!${optionsName}.hasTouch });
         }
       }
       return this._defaultContext;

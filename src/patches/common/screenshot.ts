@@ -1,11 +1,10 @@
-// ArkWeb screenshot patch: Page.captureScreenshot on ArkWeb handles
-// format/clip/quality/captureBeyondViewport correctly (verified on device),
-// so the native CDP screenshot is used and only a failure falls back to the
-// HDC display capture.
+// Screenshot fallback patch shared by every device browser: the native CDP
+// screenshot is used and only a failure falls back to the HDC display
+// capture (png only).
 import { marker, OHOS_REQUIRE } from '../types';
 import type { PatchDefinition } from '../types';
 
-export const arkwebScreenshotBundlePatches: PatchDefinition[] = [
+export const commonScreenshotBundlePatches: PatchDefinition[] = [
   {
     id: 'patch-3b-screenshot-fallback',
     description: 'CDP screenshot failure falls back to HDC',
@@ -25,7 +24,7 @@ export const arkwebScreenshotBundlePatches: PatchDefinition[] = [
   },
 ];
 
-export const arkwebScreenshotFilesPatches: PatchDefinition[] = [
+export const commonScreenshotFilesPatches: PatchDefinition[] = [
   {
     id: 'patch-3b-screenshot-fallback',
     description: 'CDP screenshot failure falls back to HDC',

@@ -7,9 +7,10 @@ import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
 
-import { platformBundlePatches, platformFilesPatches } from './platform';
+import { platformBundlePatches, platformFilesPatches } from './common/platform';
+import { commonScreenshotBundlePatches, commonScreenshotFilesPatches } from './common/screenshot';
+import { chromiumContextBundlePatches, chromiumContextFilesPatches } from './chromium/context';
 import { arkwebTargetBundlePatches, arkwebTargetFilesPatches } from './arkweb/targets';
-import { arkwebScreenshotBundlePatches, arkwebScreenshotFilesPatches } from './arkweb/screenshot';
 import { arkwebContextBundlePatches, arkwebContextFilesPatches } from './arkweb/context';
 import { arkwebPageBundlePatches, arkwebPageFilesPatches } from './arkweb/page';
 import { arkwebStorageBundlePatches, arkwebStorageFilesPatches } from './arkweb/storage';
@@ -21,8 +22,9 @@ export type { PatchDefinition, PatchResult } from './types';
 
 const bundlePatches: PatchDefinition[] = [
   ...platformBundlePatches,
+  ...commonScreenshotBundlePatches,
+  ...chromiumContextBundlePatches,
   ...arkwebTargetBundlePatches,
-  ...arkwebScreenshotBundlePatches,
   ...arkwebContextBundlePatches,
   ...arkwebPageBundlePatches,
   ...arkwebStorageBundlePatches,
@@ -30,8 +32,9 @@ const bundlePatches: PatchDefinition[] = [
 
 const filesPatches: PatchDefinition[] = [
   ...platformFilesPatches,
+  ...commonScreenshotFilesPatches,
+  ...chromiumContextFilesPatches,
   ...arkwebTargetFilesPatches,
-  ...arkwebScreenshotFilesPatches,
   ...arkwebContextFilesPatches,
   ...arkwebPageFilesPatches,
   ...arkwebStorageFilesPatches,

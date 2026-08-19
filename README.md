@@ -108,13 +108,13 @@ playwright-ohos is validated against the official Playwright test suite, which c
 - **Page-level tests** - exercise the high-level Page API: navigation, interaction, screenshots and assertions.
 - **Library-level tests** - exercise the lower-level browser APIs: browser and context lifecycle, network, downloads and the browser object itself.
 
-The table below shows the merged pass rate after three test rounds: round 1 runs the full suite, round 2 reruns the round-1 failures and round 3 reruns the round-2 failures plus every test skipped in the earlier rounds; a test counts as passed when it passes in any round. Pass rate = passed / (total - skipped). Compute the merged totals with `node scripts/merge-rounds.mjs`.
+The table below shows the merged pass rate after four test rounds: round 1 runs the full suite, round 2 reruns the round-1 failures, round 3 reruns the round-2 failures plus every test skipped in the earlier rounds, and round 4 reruns the round-3 failures; a test counts as passed when it passes in any round. A test whose latest recorded outcome is skipped is excluded from the denominator. Pass rate = passed / (total - skipped). Compute the merged totals with `node scripts/merge-rounds.mjs 4`.
 
 | Test Category | Huawei Browser | Haitai Browser |
 | --- | --- | --- |
 | Page-level tests | 93.13% | 97.66% |
-| Library-level tests | 60.18% | 83.91% |
-| **All tests** | **80.00%** | **92.19%** |
+| Library-level tests | 63.05% | 83.98% |
+| **All tests** | **81.15%** | **92.21%** |
 
 
 ## Launch Options
@@ -170,6 +170,8 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 
 ### Patch List
 
+#### Common
+
 | Patch | Purpose | Guard |
 | --- | --- | --- |
 | Patch 0 | openharmony platform cache and daemon directories | `process.platform === 'openharmony'` |
@@ -177,16 +179,26 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 | Patch 1 | `chromium.launch()` delegates to HDC launch | `process.platform === 'openharmony'` |
 | Patch 1b | `launchPersistentContext` throws an error | `process.platform === 'openharmony'` |
 | Patch 1c/1d | HDC backend and ArkWeb flags forwarded through `CRBrowser.connect` | `process.platform === 'openharmony'` |
-| Patch 1e/1f | skip the default browser context for Chromium-based browsers | `__ohosNoDefaultContext` |
 | Patch 1g | registers the HarmonyOS options in the launch schema (option passthrough) | `process.platform === 'openharmony'` |
-| Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `process.platform === 'openharmony'` |
-| Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
+| Patch init-script | injects the HarmonyOS init script (`navigator.webdriver`, touch coordinate rounding) | `_hdcBackend` |
 | Patch 3b | CDP screenshot falls back to the HDC display capture on failure | `_hdcBackend` |
-| Patch 5 | ArkWeb reuses the default BrowserContext; the requested viewport is applied to it | `_isArkWeb` |
-| Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
-| Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |
 | Patch 8 | `boundingBox` `Math.round` (sub-pixel precision fix) | `_hdcBackend` |
 | Patch 8b | screencast frame viewport reports the emulated viewport | `_hdcBackend` |
+
+#### Haitai Browser
+
+| Patch | Purpose | Guard |
+| --- | --- | --- |
+| Patch 1e/1f | skip the default browser context for Chromium-based browsers | `__ohosNoDefaultContext` |
+
+#### Huawei Browser
+
+| Patch | Purpose | Guard |
+| --- | --- | --- |
+| Patch 2/2a | ArkWeb `type: "other"` targets recognized as pages | `_isArkWeb` |
+| Patch 5 | ArkWeb reuses the default BrowserContext; the requested viewport, touch and mobile options are applied to it | `_isArkWeb` |
+| Patch 6/6b | ArkWeb reuses an existing page; closing navigates to `about:blank` | `_isArkWeb` |
+| Patch 7/7b | ArkWeb context close cleans up instead of closing the browser; close events re-emitted | `_isArkWeb` |
 | Patch 9b/9c | storage-state page kept alive; `newPage` failure guard | `_isArkWeb` |
 
 ### HDC Connection Flow
