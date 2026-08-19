@@ -8,20 +8,22 @@
 // PW_OHOS_RESUME=1 to continue a crashed round instead.
 //
 // Usage:
-//   node scripts/run-round-all.mjs <round>
+//   node scripts/run-round-all.mjs <round> [--include-skipped]
 import { spawnSync } from 'node:child_process';
 
 const round = process.argv[2];
 if (!round) {
-  console.error('usage: node scripts/run-round-all.mjs <round>');
+  console.error('usage: node scripts/run-round-all.mjs <round> [--include-skipped]');
   process.exit(2);
 }
+// Extra flags are forwarded to each per-browser round.
+const extraArgs = process.argv.slice(3);
 
 const browsers = ['chrome', 'huaweiBrowser'];
 const results = [];
 for (const browser of browsers) {
   console.log(`\n=== [run-round-all] starting ${browser} round ${round} ===\n`);
-  const result = spawnSync('node', ['scripts/run-round.mjs', browser, round], {
+  const result = spawnSync('node', ['scripts/run-round.mjs', browser, round, ...extraArgs], {
     stdio: 'inherit',
     env: process.env,
   });

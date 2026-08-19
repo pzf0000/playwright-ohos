@@ -1,0 +1,205 @@
+{
+  "browserLabels": {
+    "chrome": "chrome（海泰浏览器）",
+    "huaweiBrowser": "huaweiBrowser（华为浏览器）"
+  },
+  "text": {
+    "passRateNote": "通过率 = 通过 / (总数 − 跳过)。未记录的数量留空，不估算。",
+    "browserSummaryTitle": "每浏览器汇总",
+    "section2Intro": "归因对象限定为三类：鸿蒙系统、设备浏览器（含其 CDP 实现）、补丁代码（playwright-ohos）；另有两类属测试基建/依赖问题，已修复。凡未记录协议级细节的类别，均注明\"待确认\"，不在报告中推测。",
+    "skippedUnknown": "本轮未记录单个跳过用例及其原因（管道模式的 line 报告器只输出跳过总数）；后续轮次由 scripts/round-reporter.mjs 写入的 results/ 明细包含每用例结果与跳过原因。",
+    "footer": "## 附：每轮记录的文件\n\n每轮记录位于 test-progress/<browser>/round<N>/：\n\n- stream.log：流式报告器输出（含失败条目与错误原文）；\n- report.json：结构化报告（每用例状态与跳过注解，续跑时合并）；\n- results/<套件>/<文件>.log：scripts/round-reporter.mjs 按套件、按文件写入的每用例一行结果（状态、耗时、跳过原因）；\n- failures/<套件>/<文件>#<行号>.txt：失败用例的完整错误、步骤与 stdout/stderr；\n- failed.txt：下一轮的失败用例清单；progress.txt：最新进度行。\n\n如需协议级定位（超时、下载取消、CDP 差异类），设置环境变量 PW_OHOS_CDP_LOG=1 再执行轮次脚本，playwright 的 CDP 收发日志（DEBUG=pw:protocol）会写入 stream.log。"
+  },
+  "categories": [
+    {
+      "id": "test-infra-closed",
+      "match": "has been closed",
+      "name": "浏览器实例已被关闭（Target page, context or browser has been closed）",
+      "attribution": "测试基建（tests/config/browserTest.ts 的每用例重启实现缺陷），已修复",
+      "note": "旧实现在同一测试创建第二个上下文时重启浏览器，并关闭了 worker 级 browser 夹具。修复后该类别应大幅减少；剩余条目需逐例确认是否有设备侧原因。"
+    },
+    {
+      "id": "formidable",
+      "match": "IncomingForm is not a constructor",
+      "name": "multipart 上传解析失败（IncomingForm is not a constructor）",
+      "attribution": "测试依赖版本错误（package.json 中 formidable ^3.5.4 与 playwright 1.60.0 的 ^2.1.1 不符），已修复",
+      "note": "playwright 上游以默认导入方式调用 v2 的 IncomingForm；v3 的默认导出不同导致构造失败。与鸿蒙系统、设备浏览器、补丁代码均无关。"
+    },
+    {
+      "id": "launch-persistent",
+      "match": "launchPersistentContext is not supported",
+      "name": "launchPersistentContext 不支持",
+      "attribution": "补丁代码的有意限制",
+      "note": "设备浏览器通过 aa start 启动，无法创建持久化用户目录上下文，补丁在 launchPersistentContext 入口直接抛出。属 WORK.md 已计入的预期失败。"
+    },
+    {
+      "id": "ffmpeg",
+      "match": "ffmpeg is not supported",
+      "name": "视频/screencast 录制失败（ffmpeg is not supported on <unknown>）",
+      "attribution": "鸿蒙系统平台",
+      "note": "playwright 的视频录制依赖其随包分发的 ffmpeg 二进制，该依赖按平台打包；鸿蒙（openharmony 平台标识）没有对应构建，与设备浏览器无关。"
+    },
+    {
+      "id": "download-canceled",
+      "match": "download\\.(path|saveAs|createReadStream|delete): canceled",
+      "name": "下载被取消（download.*: canceled）",
+      "attribution": "设备浏览器，具体环节待确认",
+      "note": "playwright 通过 CDP 下发下载配置（Browser.setDownloadBehavior / Browser.downloadWillBegin）后设备浏览器仍取消下载。本轮未记录协议交互，可用 PW_OHOS_CDP_LOG=1 记录后再定位。"
+    },
+    {
+      "id": "timeout",
+      "match": "test timeout of \\d+ms exceeded",
+      "flags": "i",
+      "name": "测试超时",
+      "attribution": "待确认（多为等待某个导航/事件超时，本轮日志记录了等待目标，未记录协议交互）",
+      "note": "错误文本含 Call log（例如 waiting for navigation until \"load\"）。设置 PW_OHOS_CDP_LOG=1 后可从 CDP 日志确认是哪个 domain 的事件未按桌面 Chrome 的时序到达。"
+    },
+    {
+      "id": "launch-timeout",
+      "match": "browserType\\.launch: Timeout",
+      "name": "设备浏览器启动超时",
+      "attribution": "设备/启动器，偶发",
+      "note": "华为浏览器依赖 /proc/net/unix 中的 webview_devtools_remote socket 发现流程，超时窗口内 socket 未出现。属偶发，三轮方法论下由后续轮次重跑覆盖。"
+    },
+    {
+      "id": "local-server",
+      "match": "connect ECONNREFUSED|connectOverCDP|browser\\.bind: listen EPERM",
+      "name": "本地浏览器服务器相关用例失败（browsertype-connect / browser-server / signals 等）",
+      "attribution": "鸿蒙系统环境",
+      "note": "这些用例在宿主机上启动本地 playwright 服务器或创建 unix socket（browser.bind 报 listen EPERM），鸿蒙文件系统/进程环境不支持。与设备浏览器无关。"
+    },
+    {
+      "id": "dns",
+      "match": "ERR_NAME_NOT_RESOLVED",
+      "name": "DNS 解析失败（net::ERR_NAME_NOT_RESOLVED）",
+      "attribution": "设备浏览器网络栈",
+      "note": "设备浏览器对测试中使用的域名的解析结果与桌面 Chrome 不同；本轮未记录差异细节，协议日志可进一步确认。"
+    },
+    {
+      "id": "file-scheme",
+      "match": "ERR_ACCESS_DENIED at file:",
+      "name": "file:// 协议访问被拒绝（net::ERR_ACCESS_DENIED）",
+      "attribution": "鸿蒙系统/设备浏览器沙箱",
+      "note": "期望：测试资产 file:// URL 可正常导航；实际：设备浏览器拒绝访问宿主文件系统路径。"
+    },
+    {
+      "id": "net-other",
+      "match": "net::ERR_",
+      "name": "其他网络错误（net::ERR_*）",
+      "attribution": "设备浏览器网络栈，待逐例确认",
+      "note": "含 ERR_CONNECTION_REFUSED / ERR_CONNECTION_TIMED_OUT / ERR_ABORTED / ERR_CONNECTION_CLOSED 等，与桌面 Chrome 的表现存在差异。"
+    },
+    {
+      "id": "protocol-error",
+      "match": "Protocol error",
+      "name": "CDP 协议错误（Protocol error ...）",
+      "attribution": "设备浏览器 CDP 实现差异",
+      "note": "期望：非法导航在页面侧报错（桌面 Chrome 行为）；实际：设备浏览器通过 CDP 直接返回协议错误，例如 Protocol error (Page.navigate): Cannot navigate to invalid URL。"
+    },
+    {
+      "id": "not-colocated",
+      "match": "Cannot transfer files larger than",
+      "name": "大文件上传不支持（>50MB 需浏览器与服务器同机）",
+      "attribution": "架构限制（设备浏览器与测试服务器不同机），预期失败",
+      "note": "playwright 仅在同机（co-located）场景支持 >50MB 文件传输；设备浏览器无法满足。"
+    },
+    {
+      "id": "parse-har",
+      "match": "parseHar is not supported",
+      "name": "parseHar 未实现",
+      "attribution": "补丁代码未实现该能力",
+      "note": "pageWithHar 夹具依赖 playwright-ohos 未移植的 parseHar 工具。"
+    },
+    {
+      "id": "tap-touch",
+      "match": "The page does not support tap",
+      "name": "page.tap 不支持（hasTouch 上下文选项无效）",
+      "attribution": "华为浏览器（ArkWeb）",
+      "note": "期望：带 hasTouch 选项的上下文支持 tap（对应触摸模拟能力）；实际：上下文选项未生效，tap 被拒绝。具体是哪个 CDP 能力缺失（如 Emulation 触摸相关方法）本轮未记录，协议日志确认。"
+    },
+    {
+      "id": "viewport-float",
+      "match": "expected integer, got float",
+      "name": "viewport 尺寸为浮点数（expected integer, got float）",
+      "attribution": "华为浏览器（ArkWeb）",
+      "note": "期望：viewport 尺寸为整数（桌面 Chrome 行为）；实际：设备浏览器上报浮点值，playwright 参数校验失败。"
+    },
+    {
+      "id": "exec-context-destroyed",
+      "match": "Execution context was destroyed",
+      "name": "执行上下文被销毁（Execution context was destroyed）",
+      "attribution": "设备浏览器 CDP 时序差异，待确认",
+      "note": "期望：导航/求值期间执行上下文按桌面 Chrome 时序可用；实际：设备浏览器提前销毁执行上下文（Runtime.executionContextDestroyed 时序差异）。"
+    },
+    {
+      "id": "navigation-interrupted",
+      "match": "Navigation to .* is interrupted by another navigation",
+      "name": "导航被另一导航打断",
+      "attribution": "设备浏览器导航时序差异，待确认",
+      "note": "期望：连续导航按桌面 Chrome 行为排队/取消；实际：设备浏览器报告导航被打断（Page.navigate 与 frame 导航时序差异）。"
+    },
+    {
+      "id": "newpage-default-context",
+      "match": "Please use browser\\.newContext\\(\\)",
+      "name": "browser.newPage 不支持（Please use browser.newContext()）",
+      "attribution": "补丁代码已知限制（华为浏览器复用默认上下文的补丁行为）",
+      "note": "华为浏览器补丁复用默认上下文，未挂接默认上下文时 newPage 被拒绝。"
+    },
+    {
+      "id": "erofs",
+      "match": "EROFS: read-only file system",
+      "name": "文件系统只读（EROFS）",
+      "attribution": "鸿蒙系统文件系统限制",
+      "note": "期望：/tmp 可写（桌面 Linux 行为）；实际：鸿蒙 /tmp 只读，测试写入状态文件失败。"
+    },
+    {
+      "id": "enoent-artifact",
+      "match": "ENOENT: no such file or directory",
+      "name": "测试产物文件缺失（ENOENT）",
+      "attribution": "测试环境产物路径问题，待确认成因",
+      "note": "错误信息记录了缺失的具体路径（多为 test-results/ 下的产物）。"
+    },
+    {
+      "id": "webauthn",
+      "match": "getClientCapabilities is not a function",
+      "name": "WebAuthn API 缺失",
+      "attribution": "设备浏览器 Web API 能力缺失",
+      "note": "期望：PublicKeyCredential.getClientCapabilities 可用（桌面 Chrome）；实际：设备浏览器未实现该 API。"
+    },
+    {
+      "id": "self-signed",
+      "match": "self-signed certificate",
+      "name": "自签名证书校验失败",
+      "attribution": "鸿蒙系统 Node 环境 TLS",
+      "note": "apiRequestContext 在鸿蒙 Node 环境下的证书处理与桌面不同；错误信息记录了具体用例。"
+    },
+    {
+      "id": "null-video-download",
+      "match": "Cannot read properties of null \\(reading '(path|width|saveAs|message)'\\)",
+      "name": "video()/download() 返回空对象",
+      "attribution": "设备浏览器对应能力不可用，待确认",
+      "note": "期望：视频/下载对象可用；实际：返回 null（与 ffmpeg、下载取消类相关）。"
+    },
+    {
+      "id": "snapshot",
+      "match": "toMatchSnapshot|toHaveScreenshot|SOI not found",
+      "name": "快照/截图断言失败",
+      "attribution": "设备浏览器渲染差异，待逐例确认",
+      "note": "期望：渲染结果与桌面 Chromium 快照一致；实际：设备浏览器渲染存在差异（含华为截图编码 SOI not found 问题）。"
+    },
+    {
+      "id": "assertion",
+      "match": "expect\\(",
+      "name": "断言失败（expect 值不匹配）",
+      "attribution": "设备浏览器行为差异，待逐例确认",
+      "note": "明细中的 received/expected 即本轮记录到的实际与期望值；如需协议级定位，用 PW_OHOS_CDP_LOG=1。"
+    },
+    {
+      "id": "misc",
+      "match": ".",
+      "name": "其他",
+      "attribution": "见明细错误信息",
+      "note": ""
+    }
+  ]
+}

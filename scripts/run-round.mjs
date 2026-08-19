@@ -5,9 +5,11 @@
 //
 // Browsers: chrome (Haitai), huaweiBrowser. Each invocation runs both the
 // page and the library suites of that browser sequentially in one worker.
-// Round 1 runs everything. Rounds 2+ run only the tests that failed in the
-// previous round (three-round methodology: a test passes if it passes in
-// any round).
+// Round 1 runs everything. Rounds 2+ run only the tests that failed in
+// the previous round (three-round methodology: a test passes if it passes
+// in any round). The optional --include-skipped flag additionally re-runs
+// every test skipped in the earlier rounds (used by the round-3 full
+// verification); pass the same flag on resume invocations.
 //
 // The browser is restarted before every test (PW_OHOS_BROWSER_RESTART,
 // enabled by default): the HDC launcher force-stops the device browser and
@@ -43,9 +45,10 @@ const CONFIG = 'tests/playwright.config.ts';
 const browser = process.argv[2];
 const round = process.argv[3];
 if (!browser || !round) {
-  console.error('usage: node scripts/run-round.mjs <browser> <round>');
+  console.error('usage: node scripts/run-round.mjs <browser> <round> [--include-skipped]');
   process.exit(2);
 }
+const includeSkipped = process.argv.slice(4).includes('--include-skipped');
 const projects = [`${browser}-page`, `${browser}-library`];
 
 const stateDir = path.join('test-progress', browser);
@@ -151,6 +154,33 @@ if (fs.existsSync(logPath)) {
   }
 }
 
+// Collects the grep patterns of every test skipped in the structured
+// reports of the rounds before this one. The json reporter stores the
+// full space-joined title path in spec.title, the format --grep matches.
+const collectSkippedPatterns = (upToRound) => {
+  const patterns = new Set();
+  for (let k = 1; k < upToRound; k++) {
+    const reportPath = path.join(stateDir, `round${k}`, 'report.json');
+    if (!fs.existsSync(reportPath)) {
+      continue;
+    }
+    const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+    const walk = (suites, file) => {
+      for (const suite of suites || []) {
+        const suiteFile = suite.file || file;
+        for (const spec of suite.specs || []) {
+          if (spec.tests?.some(test => test.status === 'skipped') && suiteFile) {
+            patterns.add(canonicalPattern(suiteFile, spec.title));
+          }
+        }
+        walk(suite.suites, suiteFile);
+      }
+    };
+    walk(report.suites, null);
+  }
+  return patterns;
+};
+
 let grep = null;
 const previousFailed = path.join(stateDir, `round${Number(round) - 1}`, 'failed.txt');
 if (round > 1) {
@@ -161,12 +191,20 @@ if (round > 1) {
   const failed = fs.readFileSync(previousFailed, 'utf8').split('\n')
     .map(line => line.replace(/^#\s*/, '').trim())
     .filter(title => title && !recorded.has(title));
-  if (failed.length === 0) {
-    console.log(`round ${round}: nothing to run (all previous failures already recorded)`);
+  let wanted = failed;
+  if (includeSkipped) {
+    const skipped = [...collectSkippedPatterns(Number(round))]
+      .filter(title => !recorded.has(title));
+    const merged = [...new Set([...failed, ...skipped])];
+    console.log(`round ${round}: ${skipped.length} previously skipped test(s) added to the rerun`);
+    wanted = merged;
+  }
+  if (wanted.length === 0) {
+    console.log(`round ${round}: nothing to run (all selected tests already recorded)`);
     fs.appendFileSync(logPath, `=== finished ${new Date().toISOString()} (nothing to run) ===\n`);
     process.exit(0);
   }
-  grep = failed.join('|');
+  grep = wanted.join('|');
 }
 
 // The CLI resolves custom reporter paths against the current working
@@ -219,8 +257,8 @@ if (recorded.size > 0 && fs.existsSync(jsonPath)) {
   previousJson = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
 }
 
-console.log(`[run-round] browser=${browser} round=${round}: ${recorded.size} recorded, ${grep ? grep.split('|').length + ' failed tests to rerun' : 'full run'}`);
-fs.appendFileSync(logPath, `\n=== resume ${new Date().toISOString()} recorded=${recorded.size} ${grep ? 'failed-only' : 'full'} ===\n`);
+console.log(`[run-round] browser=${browser} round=${round}: ${recorded.size} recorded, ${grep ? grep.split('|').length + ' tests to rerun (failed and skipped)' : 'full run'}`);
+fs.appendFileSync(logPath, `\n=== resume ${new Date().toISOString()} recorded=${recorded.size} ${grep ? 'rerun' : 'full'} ===\n`);
 
 const child = spawn('npx', args, { stdio: ['ignore', 'pipe', 'pipe'], env: childEnv });
 const logStream = fs.createWriteStream(logPath, { flags: 'a' });
