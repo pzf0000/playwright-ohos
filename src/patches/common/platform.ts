@@ -826,6 +826,23 @@ export const platformFilesPatches: PatchDefinition[] = [
       }`,
   },
   {
+    // 1.59 adds a second module-level cache directory computation in
+    // lib/serverRegistry.js (required by the driver), which must also
+    // resolve on openharmony.
+    id: 'patch-0-cache-dir',
+    description: 'openharmony platform cache directory',
+    file: 'lib/serverRegistry.js',
+    versions: '>=1.59.0 <1.60.0',
+    find: /if \(process\.platform === "win32"\)\n\s+return process\.env\.LOCALAPPDATA \|\| (import_\w+)\.default\.join\((import_\w+)\.default\.homedir\(\), "AppData", "Local"\);\n(\s+)throw new Error\("Unsupported platform: " \+ process\.platform\);/g,
+    replace: (match, importPath, importOs, indent) => `if (process.platform === "win32")
+    return process.env.LOCALAPPDATA || ${importPath}.default.join(${importOs}.default.homedir(), "AppData", "Local");
+    ${marker('patch-0-cache-dir')}
+    if (process.platform === "openharmony") {
+      return process.env.XDG_CACHE_HOME || ${importPath}.default.join(${importOs}.default.homedir(), ".cache");
+    }
+${indent}throw new Error("Unsupported platform: " + process.platform);`,
+  },
+  {
     // The cli-client daemon directory only exists from 1.59 in the
     // separate-file layout; earlier versions have no such code.
     id: 'patch-0-daemon-dir',
@@ -988,7 +1005,21 @@ ${indent}if (!localCacheDir)`,
     id: 'patch-8b-screencast-viewport',
     description: 'screencast frame viewport reports the emulated viewport',
     file: 'lib/server/chromium/crPage.js',
-    versions: '>=1.52.0 <1.58.0',
+    versions: '>=1.52.0 <1.53.0',
+    find: /this\._page\.emit\((\w+)\.Page\.Events\.ScreencastFrame, \{\n\s+buffer,\n\s+frameSwapWallTime: payload\.metadata\.timestamp \? payload\.metadata\.timestamp \* 1e3 : void 0,\n\s+width: payload\.metadata\.deviceWidth,\n\s+height: payload\.metadata\.deviceHeight\n\s+\}\);/g,
+    replace: (match, pageModule) => `this._page.emit(${pageModule}.Page.Events.ScreencastFrame, {
+      buffer,
+      frameSwapWallTime: payload.metadata.timestamp ? payload.metadata.timestamp * 1e3 : void 0,
+      ${marker('patch-8b-screencast-viewport')}
+      width: this._page._browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(payload.metadata.deviceWidth)) : payload.metadata.deviceWidth,
+      height: this._page._browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(payload.metadata.deviceHeight)) : payload.metadata.deviceHeight
+    });`,
+  },
+  {
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.53.0 <1.58.0',
     find: /this\._page\.emit\((\w+)\.Page\.Events\.ScreencastFrame, \{\n\s+buffer,\n\s+frameSwapWallTime: payload\.metadata\.timestamp \? payload\.metadata\.timestamp \* 1e3 : void 0,\n\s+width: payload\.metadata\.deviceWidth,\n\s+height: payload\.metadata\.deviceHeight\n\s+\}\);/g,
     replace: (match, pageModule) => `this._page.emit(${pageModule}.Page.Events.ScreencastFrame, {
       buffer,

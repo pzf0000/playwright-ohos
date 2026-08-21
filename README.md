@@ -222,7 +222,14 @@ prints a per-patch status matrix:
 ```
 node scripts/probe-versions.mjs          # probe the default version list
 node scripts/probe-versions.mjs 1.62.1   # probe specific versions
+node scripts/runtime-verify.mjs          # exercise the patched code paths with stubs
 ```
+
+`scripts/runtime-verify.mjs` goes further: it loads each patched playwright-core
+and drives the patched code paths (history navigation, screencast viewport,
+storage state, newPage guard, daemon directory) through stub objects, covering
+both the ArkWeb and the plain Chromium branches. Bundle-era versions get a
+module load check on the openharmony platform.
 
 The matrix is green for all 13 cached releases (1.51.0, 1.51.1, 1.52.0,
 1.53.2, 1.54.2, 1.55.1, 1.56.1, 1.57.0, 1.58.2, 1.59.1, 1.60.0, 1.61.1,
