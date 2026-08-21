@@ -9,3 +9,4 @@ test-progress
 .claude
 .playwright
 __llm_cache__/
+.pw-versions/

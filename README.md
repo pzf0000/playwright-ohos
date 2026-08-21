@@ -213,4 +213,21 @@ Patches only take effect on the `openharmony` platform; other platforms are comp
 
 ### Version Support
 
-`peerDependencies` declares `playwright-core >= 1.51.0 <=1.62.1`. Patches target the bundled output across this version range and have been verified against it.
+`peerDependencies` declares `playwright-core >= 1.51.0 <=1.62.1`. Patches target both
+playwright-core layouts across this range: the separate server files
+(1.51-1.59) and the single bundle (1.60+). `scripts/probe-versions.mjs`
+applies the patch set to every published patch release in the range and
+prints a per-patch status matrix:
+
+```
+node scripts/probe-versions.mjs          # probe the default version list
+node scripts/probe-versions.mjs 1.62.1   # probe specific versions
+```
+
+The matrix is green for all 13 cached releases (1.51.0, 1.51.1, 1.52.0,
+1.53.2, 1.54.2, 1.55.1, 1.56.1, 1.57.0, 1.58.2, 1.59.1, 1.60.0, 1.61.1,
+1.62.1): every patch applies and the patched files pass the syntax check.
+Intentional gaps: `patch-1g-launch-schema` is bundle-only (older layouts
+fall back to the `HARMONY_*` environment variables), `patch-9c-newpage-guard`
+has no target before 1.55 and `patch-0-daemon-dir` has none before 1.59,
+because the upstream code did not exist yet.

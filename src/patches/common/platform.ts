@@ -284,6 +284,7 @@ ${match.slice(headEnd)}`;
     // device size when no viewport was ever applied.
     id: 'patch-8b-screencast-viewport',
     description: 'screencast frame viewport reports the emulated viewport',
+    versions: '>=1.60.0 <1.62.0',
     find: /const (\w+) = Buffer\.from\((\w+)\.data, "base64"\);\n\s+this\._page\.screencast\.onScreencastFrame\(\{\n\s+\1,\n\s+frameSwapWallTime: \2\.metadata\.timestamp \? \2\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+viewportWidth: \2\.metadata\.deviceWidth,\n\s+viewportHeight: \2\.metadata\.deviceHeight\n\s+\}, \(\) => \{/g,
     replace: (match, bufferName, payloadName) => `const ${bufferName} = Buffer.from(${payloadName}.data, "base64");
         ${marker('patch-8b-screencast-viewport')}
@@ -293,6 +294,22 @@ ${match.slice(headEnd)}`;
           viewportWidth: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(${payloadName}.metadata.deviceWidth)) : ${payloadName}.metadata.deviceWidth,
           viewportHeight: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(${payloadName}.metadata.deviceHeight)) : ${payloadName}.metadata.deviceHeight
         }, () => {`,
+  },
+  {
+    // 1.62 moved the screencast ack from the second argument of
+    // onScreencastFrame into a .then() on the returned promise.
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    versions: '>=1.62.0',
+    find: /const (\w+) = Buffer\.from\((\w+)\.data, "base64"\);\n\s+void this\._page\.screencast\.onScreencastFrame\(\{\n\s+\1,\n\s+frameSwapWallTime: \2\.metadata\.timestamp \? \2\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+viewportWidth: \2\.metadata\.deviceWidth,\n\s+viewportHeight: \2\.metadata\.deviceHeight\n\s+\}\)\.then\(\(\) => \{/g,
+    replace: (match, bufferName, payloadName) => `const ${bufferName} = Buffer.from(${payloadName}.data, "base64");
+        ${marker('patch-8b-screencast-viewport')}
+        void this._page.screencast.onScreencastFrame({
+          buffer: ${bufferName},
+          frameSwapWallTime: ${payloadName}.metadata.timestamp ? ${payloadName}.metadata.timestamp * 1e3 : Date.now(),
+          viewportWidth: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(${payloadName}.metadata.deviceWidth)) : ${payloadName}.metadata.deviceWidth,
+          viewportHeight: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(${payloadName}.metadata.deviceHeight)) : ${payloadName}.metadata.deviceHeight
+        }).then(() => {`,
   },
   {
     // Round bounding boxes reported by the device to fix sub-pixel
@@ -323,7 +340,68 @@ export const platformFilesPatches: PatchDefinition[] = [
     id: 'patch-1h-history-navigation',
     description: 'history navigation waits for the URL change',
     file: 'lib/server/chromium/crPage.js',
-    versions: '>=1.51.0 <1.60.0',
+    versions: '>=1.51.0 <1.52.0',
+    find: /async _go\((\w+)\) \{\n\s+const (\w+) = await this\._mainFrameSession\._client\.send\('Page\.getNavigationHistory'\);\n\s+const entry = \2\.entries\[\2\.currentIndex \+ \1\];\n\s+if \(!entry\) return false;\n\s+await this\._mainFrameSession\._client\.send\('Page\.navigateToHistoryEntry', \{\n\s+entryId: entry\.id\n\s+\}\);\n\s+return true;\n\s+\}/g,
+    replace: (match, deltaName, historyName) => `async _go(${deltaName}) {
+    const ${historyName} = await this._mainFrameSession._client.send('Page.getNavigationHistory');
+    const entry = ${historyName}.entries[${historyName}.currentIndex + ${deltaName}];
+    if (!entry) return false;
+    await this._mainFrameSession._client.send('Page.navigateToHistoryEntry', {
+      entryId: entry.id
+    });
+    ${marker('patch-1h-history-navigation')}
+    if (this._page._browserContext._browser._hdcBackend) {
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const { result } = await this._mainFrameSession._client.send('Runtime.evaluate', {
+          expression: 'location.href',
+          returnByValue: true
+        });
+        if (result?.value === entry.url)
+          break;
+      }
+      return entry.url;
+    }
+    return true;
+  }`,
+  },
+  {
+    // 1.52 moved to double quotes; the public page.browserContext field
+    // only exists from 1.53, so the private field is used here.
+    id: 'patch-1h-history-navigation',
+    description: 'history navigation waits for the URL change',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.52.0 <1.53.0',
+    find: /async _go\((\w+)\) \{\n\s+const (\w+) = await this\._mainFrameSession\._client\.send\("Page\.getNavigationHistory"\);\n\s+const entry = \2\.entries\[\2\.currentIndex \+ \1\];\n\s+if \(!entry\)\n\s+return false;\n\s+await this\._mainFrameSession\._client\.send\("Page\.navigateToHistoryEntry", \{ entryId: entry\.id \}\);\n\s+return true;\n\s+\}/g,
+    replace: (match, deltaName, historyName) => `async _go(${deltaName}) {
+    const ${historyName} = await this._mainFrameSession._client.send("Page.getNavigationHistory");
+    const entry = ${historyName}.entries[${historyName}.currentIndex + ${deltaName}];
+    if (!entry)
+      return false;
+    await this._mainFrameSession._client.send("Page.navigateToHistoryEntry", { entryId: entry.id });
+    ${marker('patch-1h-history-navigation')}
+    if (this._page._browserContext._browser._hdcBackend) {
+      const deadline = Date.now() + 30000;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const { result } = await this._mainFrameSession._client.send("Runtime.evaluate", {
+          expression: "location.href",
+          returnByValue: true
+        });
+        if (result?.value === entry.url)
+          break;
+      }
+      return entry.url;
+    }
+    return true;
+  }`,
+  },
+  {
+    id: 'patch-1h-history-navigation',
+    description: 'history navigation waits for the URL change',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.53.0 <1.60.0',
     find: /async _go\((\w+)\) \{\n\s+const (\w+) = await this\._mainFrameSession\._client\.send\(['"]Page\.getNavigationHistory['"]\);\n\s+const entry = \2\.entries\[\2\.currentIndex \+ \1\];\n\s+if \(!entry\)\n\s+return false;\n\s+await this\._mainFrameSession\._client\.send\(['"]Page\.navigateToHistoryEntry['"], \{ entryId: entry\.id \}\);\n\s+return true;\n\s+\}/g,
     replace: (match, deltaName, historyName) => `async _go(${deltaName}) {
     const ${historyName} = await this._mainFrameSession._client.send('Page.getNavigationHistory');
@@ -352,7 +430,133 @@ export const platformFilesPatches: PatchDefinition[] = [
     id: 'patch-1h-go-back',
     description: 'goBack/goForward skip the event-based wait',
     file: 'lib/server/page.js',
-    versions: '>=1.51.0 <1.60.0',
+    versions: '>=1.51.0 <1.52.0',
+    find: /async goBack\((\w+), (\w+)\) \{\n\s+const controller = new _progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(progress => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+\/\/ Note: waitForNavigation may fail before we get response to goBack,\n\s+\/\/ so we should catch it immediately\.\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goBack(${metadataName}, ${optionsName}) {
+    const controller = new _progress.ProgressController(${metadataName}, this);
+    return controller.run(progress => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-back')}
+      if (this._browserContext._browser._hdcBackend) {
+        const url = await this._delegate.goBack();
+        if (!url)
+          return null;
+        return {
+          guid: 'ohos-history-response-' + Date.now() + '-' + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => '',
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: 'ohos-history-request-' + Date.now() + '-' + Math.random(),
+            url: () => url,
+            method: () => 'GET',
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => 'document',
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      // Note: waitForNavigation may fail before we get response to goBack,
+      // so we should catch it immediately.
+      let ${errorName};`,
+  },
+  {
+    // 1.52-1.53 wrap goBack in a ProgressController; Progress.race only
+    // exists from 1.54, so the delegate call is awaited directly. The
+    // public page.browserContext field and the public delegate only exist
+    // from 1.53, so 1.52 uses the private fields.
+    id: 'patch-1h-go-back',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.52.0 <1.53.0',
+    find: /async goBack\((\w+), (\w+)\) \{\n\s+const controller = new import_progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(\(progress\) => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goBack(${metadataName}, ${optionsName}) {
+    const controller = new import_progress.ProgressController(${metadataName}, this);
+    return controller.run((progress) => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-back')}
+      if (this._browserContext._browser._hdcBackend) {
+        const url = await this._delegate.goBack();
+        if (!url)
+          return null;
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-back',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.53.0 <1.54.0',
+    find: /async goBack\((\w+), (\w+)\) \{\n\s+const controller = new import_progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(\(progress\) => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goBack(${metadataName}, ${optionsName}) {
+    const controller = new import_progress.ProgressController(${metadataName}, this);
+    return controller.run((progress) => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-back')}
+      if (this.browserContext._browser._hdcBackend) {
+        const url = await this.delegate.goBack();
+        if (!url)
+          return null;
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-back',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.54.0 <1.60.0',
     find: /async goBack\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
     replace: (match, progressName, optionsName, errorName) => `async goBack(${progressName}, ${optionsName}) {
     return this.mainFrame().raceNavigationAction(${progressName}, async () => {
@@ -392,7 +596,133 @@ export const platformFilesPatches: PatchDefinition[] = [
     id: 'patch-1h-go-forward',
     description: 'goBack/goForward skip the event-based wait',
     file: 'lib/server/page.js',
-    versions: '>=1.51.0 <1.60.0',
+    versions: '>=1.51.0 <1.52.0',
+    find: /async goForward\((\w+), (\w+)\) \{\n\s+const controller = new _progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(progress => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+\/\/ Note: waitForNavigation may fail before we get response to goForward,\n\s+\/\/ so we should catch it immediately\.\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goForward(${metadataName}, ${optionsName}) {
+    const controller = new _progress.ProgressController(${metadataName}, this);
+    return controller.run(progress => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-forward')}
+      if (this._browserContext._browser._hdcBackend) {
+        const url = await this._delegate.goForward();
+        if (!url)
+          return null;
+        return {
+          guid: 'ohos-history-response-' + Date.now() + '-' + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => '',
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: 'ohos-history-request-' + Date.now() + '-' + Math.random(),
+            url: () => url,
+            method: () => 'GET',
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => 'document',
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      // Note: waitForNavigation may fail before we get response to goForward,
+      // so we should catch it immediately.
+      let ${errorName};`,
+  },
+  {
+    // 1.52-1.53 wrap goForward in a ProgressController; Progress.race only
+    // exists from 1.54, so the delegate call is awaited directly. The
+    // public page.browserContext field and the public delegate only exist
+    // from 1.53, so 1.52 uses the private fields.
+    id: 'patch-1h-go-forward',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.52.0 <1.53.0',
+    find: /async goForward\((\w+), (\w+)\) \{\n\s+const controller = new import_progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(\(progress\) => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goForward(${metadataName}, ${optionsName}) {
+    const controller = new import_progress.ProgressController(${metadataName}, this);
+    return controller.run((progress) => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-forward')}
+      if (this._browserContext._browser._hdcBackend) {
+        const url = await this._delegate.goForward();
+        if (!url)
+          return null;
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-forward',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.53.0 <1.54.0',
+    find: /async goForward\((\w+), (\w+)\) \{\n\s+const controller = new import_progress\.ProgressController\(\1, this\);\n\s+return controller\.run\(\(progress\) => this\.mainFrame\(\)\.raceNavigationAction\(progress, \2, async \(\) => \{\n\s+let (\w+);/g,
+    replace: (match, metadataName, optionsName, errorName) => `async goForward(${metadataName}, ${optionsName}) {
+    const controller = new import_progress.ProgressController(${metadataName}, this);
+    return controller.run((progress) => this.mainFrame().raceNavigationAction(progress, ${optionsName}, async () => {
+      ${marker('patch-1h-go-forward')}
+      if (this.browserContext._browser._hdcBackend) {
+        const url = await this.delegate.goForward();
+        if (!url)
+          return null;
+        return {
+          guid: "ohos-history-response-" + Date.now() + "-" + Math.random(),
+          url: () => url,
+          status: () => 200,
+          statusText: () => "",
+          headers: () => [],
+          timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+          fromServiceWorker: () => false,
+          request: () => ({
+            guid: "ohos-history-request-" + Date.now() + "-" + Math.random(),
+            url: () => url,
+            method: () => "GET",
+            postDataBuffer: () => null,
+            headers: () => [],
+            resourceType: () => "document",
+            isNavigationRequest: () => true,
+            redirectedFrom: () => null,
+            serviceWorker: () => null,
+            frame: () => this.mainFrame(),
+            timing: () => ({ startTime: 0, domainLookupStart: -1, domainLookupEnd: -1, connectStart: -1, secureConnectionStart: -1, connectEnd: -1, requestStart: 0, responseStart: 0 }),
+            sizes: () => ({ requestBodySize: 0, responseBodySize: 0, transferSize: 0 })
+          })
+        };
+      }
+      let ${errorName};`,
+  },
+  {
+    id: 'patch-1h-go-forward',
+    description: 'goBack/goForward skip the event-based wait',
+    file: 'lib/server/page.js',
+    versions: '>=1.54.0 <1.60.0',
     find: /async goForward\((\w+), (\w+)\) \{\n\s+return this\.mainFrame\(\)\.raceNavigationAction\(\1, async \(\) => \{\n\s+let (\w+);/g,
     replace: (match, progressName, optionsName, errorName) => `async goForward(${progressName}, ${optionsName}) {
     return this.mainFrame().raceNavigationAction(${progressName}, async () => {
@@ -494,6 +824,22 @@ export const platformFilesPatches: PatchDefinition[] = [
       if (process.platform === "openharmony") {
         return process.env.XDG_CACHE_HOME || ${importPath}.default.join(${importOs}.default.homedir(), ".cache");
       }`,
+  },
+  {
+    // The cli-client daemon directory only exists from 1.59 in the
+    // separate-file layout; earlier versions have no such code.
+    id: 'patch-0-daemon-dir',
+    description: 'openharmony daemon session directory',
+    file: 'lib/tools/cli-client/registry.js',
+    versions: '>=1.59.0 <1.60.0',
+    find: /if \(process\.platform === "win32"\)\n\s+localCacheDir = process\.env\.LOCALAPPDATA \|\| (import_\w+)\.default\.join\((import_\w+)\.default\.homedir\(\), "AppData", "Local"\);\n(\s+)if \(!localCacheDir\)/g,
+    replace: (match, importPath, importOs, indent) => `if (process.platform === "win32")
+    localCacheDir = process.env.LOCALAPPDATA || ${importPath}.default.join(${importOs}.default.homedir(), "AppData", "Local");
+    ${marker('patch-0-daemon-dir')}
+    if (process.platform === "openharmony") {
+      localCacheDir = process.env.XDG_CACHE_HOME || ${importPath}.default.join(${importOs}.default.homedir(), ".cache");
+    }
+${indent}if (!localCacheDir)`,
   },
   {
     // 1.51-1.53 run the launch inside a ProgressController callback; inject
@@ -623,10 +969,54 @@ export const platformFilesPatches: PatchDefinition[] = [
     }`,
   },
   {
+    // Before 1.59 the frame was emitted through Page.Events.ScreencastFrame
+    // with width/height keys instead of viewportWidth/viewportHeight.
     id: 'patch-8b-screencast-viewport',
     description: 'screencast frame viewport reports the emulated viewport',
     file: 'lib/server/chromium/crPage.js',
-    versions: '>=1.51.0 <1.60.0',
+    versions: '>=1.51.0 <1.52.0',
+    find: /this\._page\.emit\(_page\.Page\.Events\.ScreencastFrame, \{\n\s+buffer,\n\s+frameSwapWallTime: payload\.metadata\.timestamp \? payload\.metadata\.timestamp \* 1000 : undefined,\n\s+width: payload\.metadata\.deviceWidth,\n\s+height: payload\.metadata\.deviceHeight\n\s+\}\);/g,
+    replace: () => `this._page.emit(_page.Page.Events.ScreencastFrame, {
+      buffer,
+      frameSwapWallTime: payload.metadata.timestamp ? payload.metadata.timestamp * 1000 : undefined,
+      ${marker('patch-8b-screencast-viewport')}
+      width: this._page._browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(payload.metadata.deviceWidth)) : payload.metadata.deviceWidth,
+      height: this._page._browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(payload.metadata.deviceHeight)) : payload.metadata.deviceHeight
+    });`,
+  },
+  {
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.52.0 <1.58.0',
+    find: /this\._page\.emit\((\w+)\.Page\.Events\.ScreencastFrame, \{\n\s+buffer,\n\s+frameSwapWallTime: payload\.metadata\.timestamp \? payload\.metadata\.timestamp \* 1e3 : void 0,\n\s+width: payload\.metadata\.deviceWidth,\n\s+height: payload\.metadata\.deviceHeight\n\s+\}\);/g,
+    replace: (match, pageModule) => `this._page.emit(${pageModule}.Page.Events.ScreencastFrame, {
+      buffer,
+      frameSwapWallTime: payload.metadata.timestamp ? payload.metadata.timestamp * 1e3 : void 0,
+      ${marker('patch-8b-screencast-viewport')}
+      width: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(payload.metadata.deviceWidth)) : payload.metadata.deviceWidth,
+      height: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(payload.metadata.deviceHeight)) : payload.metadata.deviceHeight
+    });`,
+  },
+  {
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.58.0 <1.59.0',
+    find: /this\._page\.emit\((\w+)\.Page\.Events\.ScreencastFrame, \{\n\s+buffer,\n\s+frameSwapWallTime: payload\.metadata\.timestamp \? payload\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+width: payload\.metadata\.deviceWidth,\n\s+height: payload\.metadata\.deviceHeight\n\s+\}\);/g,
+    replace: (match, pageModule) => `this._page.emit(${pageModule}.Page.Events.ScreencastFrame, {
+      buffer,
+      frameSwapWallTime: payload.metadata.timestamp ? payload.metadata.timestamp * 1e3 : Date.now(),
+      ${marker('patch-8b-screencast-viewport')}
+      width: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.width ?? Math.round(payload.metadata.deviceWidth)) : payload.metadata.deviceWidth,
+      height: this._page.browserContext._browser._hdcBackend ? (this._metricsOverride?.height ?? Math.round(payload.metadata.deviceHeight)) : payload.metadata.deviceHeight
+    });`,
+  },
+  {
+    id: 'patch-8b-screencast-viewport',
+    description: 'screencast frame viewport reports the emulated viewport',
+    file: 'lib/server/chromium/crPage.js',
+    versions: '>=1.59.0 <1.60.0',
     find: /const (\w+) = Buffer\.from\((\w+)\.data, ['"]base64['"]\);\n\s+this\._page\.screencast\.onScreencastFrame\(\{\n\s+\1,\n\s+frameSwapWallTime: \2\.metadata\.timestamp \? \2\.metadata\.timestamp \* 1e3 : Date\.now\(\),\n\s+viewportWidth: \2\.metadata\.deviceWidth,\n\s+viewportHeight: \2\.metadata\.deviceHeight/g,
     replace: (match, bufferName, payloadName) => `const ${bufferName} = Buffer.from(${payloadName}.data, 'base64');
       ${marker('patch-8b-screencast-viewport')}
